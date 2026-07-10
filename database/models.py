@@ -41,15 +41,15 @@ class Order(Base):
         ForeignKey("users.id")
     )
 
-    plan: Mapped[str] = mapped_column(
-        String(50)
+    plan_id: Mapped[int] = mapped_column(
+        ForeignKey("plans.id")
     )
 
     price: Mapped[int] = mapped_column()
 
     status: Mapped[str] = mapped_column(
         String(50),
-        default="pending"
+        default="pending_payment"
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -58,6 +58,10 @@ class Order(Base):
     )
 
     user: Mapped["User"] = relationship(
+        back_populates="orders"
+    )
+
+    plan: Mapped["Plan"] = relationship(
         back_populates="orders"
     )
 
@@ -83,6 +87,10 @@ class Plan(Base):
 
     is_active: Mapped[bool] = mapped_column(
         default=True
+    )
+
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="plan"
     )
 
 

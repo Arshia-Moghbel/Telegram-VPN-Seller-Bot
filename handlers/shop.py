@@ -5,6 +5,7 @@ from sqlalchemy import select
 from db import async_session
 from database.models import Plan
 from keyboards.shop import create_plans_keyboard
+from services.order_service import create_order
 
 router = Router()
 
@@ -39,25 +40,20 @@ async def select_plan(callback: CallbackQuery):
 
     plan_id = int(callback.data.split("_")[1])
 
-    async with async_session() as session:
-        result = await session.execute(
-            select(Plan).where(Plan.id == plan_id)
-        )
+    order = await create_order(
+        telegram_id=callback.from_user.id,
+        plan_id=plan_id
+    )
 
-        plan = result.scalar_one_or_none()
-
-    if plan is None:
-        await callback.answer(
-            "این پلن وجود ندارد.",
-            show_alert=True
+    if order is None:
+        await callback.message.answer(
+            "❌ خطایی در ثبت سفارش رخ داد. لطفاً دوباره تلاش کنید."
         )
         return
 
     await callback.message.answer(
-        f"✅ پلن انتخاب شد:\n\n"
-        f"📦 اشتراک: {plan.name}\n"
-        f"⏳ مدت: {plan.duration} ماه\n"
-        f"📊 حجم: {plan.traffic}\n"
-        f"💰 مبلغ: {plan.price:,} تومان\n\n"
+        f"✅ سفارش شما ثبت شد.\n\n"
+        f"🆔 شماره سفارش: #{order.id}\n\n"
+        f"💳 وضعیت: در انتظار پرداخت\n\n"
         f"لطفاً پرداخت را انجام دهید و رسید را ارسال کنید."
     )
