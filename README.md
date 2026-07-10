@@ -1,1 +1,1 @@
-# Telegram-VPN-Seller-Bot
+# Telegram VPN Seller Bot
