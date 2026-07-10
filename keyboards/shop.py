@@ -1,25 +1,19 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-plans_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🥉 یک ماهه - 100,000 تومان",
-                callback_data="plan_1"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🥈 سه ماهه - 270,000 تومان",
-                callback_data="plan_3"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🥇 شش ماهه - 500,000 تومان",
-                callback_data="plan_6"
-            )
-        ]
-    ]
-)
+async def create_plans_keyboard(plans):
+    keyboard = []
+
+    for plan in plans:
+        keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text=f"{plan.name} - {plan.price:,} تومان",
+                    callback_data=f"plan_{plan.id}"
+                )
+            ]
+        )
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=keyboard
+    )

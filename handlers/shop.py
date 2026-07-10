@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from db import async_session
 from database.models import Plan
-from keyboards.shop import plans_keyboard
+from keyboards.shop import create_plans_keyboard
 
 router = Router()
 
@@ -24,9 +24,11 @@ async def buy_vpn(message: Message):
         )
         return
 
+    keyboard = await create_plans_keyboard(plans)
+
     await message.answer(
         "🛒 پلن موردنظر خود را انتخاب کنید:",
-        reply_markup=plans_keyboard
+        reply_markup=keyboard
     )
 
 
