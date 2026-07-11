@@ -47,9 +47,11 @@ class Order(Base):
 
     price: Mapped[int] = mapped_column()
 
+    from models.order_status import OrderStatus
+
     status: Mapped[str] = mapped_column(
         String(50),
-        default="pending_payment"
+        default=OrderStatus.PENDING_PAYMENT.value
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -63,6 +65,12 @@ class Order(Base):
 
     plan: Mapped["Plan"] = relationship(
         back_populates="orders"
+    )
+
+    receipt: Mapped["Receipt | None"] = relationship(
+        back_populates="order",
+        uselist=False,
+        cascade="all, delete-orphan"
     )
 
 
@@ -89,13 +97,40 @@ class Plan(Base):
         default=True
     )
 
+
     orders: Mapped[list["Order"]] = relationship(
         back_populates="plan"
+    )
+
+
+# Receipt model
+class Receipt(Base):
+    __tablename__ = "receipts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey("orders.id"),
+        unique=True
+    )
+
+    telegram_file_id: Mapped[str] = mapped_column(
+        String(255)
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    order: Mapped["Order"] = relationship(
+        back_populates="receipt"
     )
 
 
 __all__ = [
     "User",
     "Order",
-    "Plan"
+    "Plan",
+    "Receipt"
 ]

@@ -1,11 +1,13 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
+from aiogram.fsm.context import FSMContext
 from sqlalchemy import select
 
 from db import async_session
 from database.models import Plan
 from keyboards.shop import create_plans_keyboard
 from services.order_service import create_order
+from states.payment import PaymentState
 
 router = Router()
 
@@ -34,7 +36,7 @@ async def buy_vpn(message: Message):
 
 
 @router.callback_query(F.data.startswith("plan_"))
-async def select_plan(callback: CallbackQuery):
+async def select_plan(callback: CallbackQuery, state: FSMContext):
 
     await callback.answer()
 
@@ -50,10 +52,12 @@ async def select_plan(callback: CallbackQuery):
             "❌ خطایی در ثبت سفارش رخ داد. لطفاً دوباره تلاش کنید."
         )
         return
+    await state.update_data(order_id=order.id)
+    await state.set_state(PaymentState.waiting_for_receipt)
 
     await callback.message.answer(
         f"✅ سفارش شما ثبت شد.\n\n"
         f"🆔 شماره سفارش: #{order.id}\n\n"
         f"💳 وضعیت: در انتظار پرداخت\n\n"
-        f"لطفاً پرداخت را انجام دهید و رسید را ارسال کنید."
+        f"لطفاً مبلغ را پرداخت کنید و عکس رسید را ارسال کنید."
     )

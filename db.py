@@ -1,12 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-
-
-DATABASE_URL = "sqlite+aiosqlite:///vpnifi.db"
+from config import settings
 
 
 engine = create_async_engine(
-    DATABASE_URL,
+    settings.database_url,
     echo=False
 )
 

@@ -1,6 +1,7 @@
 from db import async_session
 from database.models import Order, User, Plan
 from sqlalchemy import select
+from models.order_status import OrderStatus
 
 
 async def create_order(
@@ -37,7 +38,7 @@ async def create_order(
             user_id=user.id,
             plan_id=plan.id,
             price=plan.price,
-            status="pending_payment"
+            status=OrderStatus.PENDING_PAYMENT.value
         )
 
         session.add(order)
