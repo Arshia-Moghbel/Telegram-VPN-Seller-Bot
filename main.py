@@ -11,9 +11,10 @@ from handlers.start import router
 
 
 async def main():
+    logging.basicConfig(level=logging.INFO)
+
     await create_db()
     await create_default_plans()
-    logging.basicConfig(level=logging.INFO)
 
     bot = Bot(BOT_TOKEN)
     dp = Dispatcher()
