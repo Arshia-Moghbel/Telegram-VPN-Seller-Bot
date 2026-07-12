@@ -1,6 +1,7 @@
 from db import async_session
 from database.models import Order, User, Plan
 from sqlalchemy import select
+from models.order_status import OrderStatus
 
 
 async def create_order(
@@ -17,13 +18,14 @@ async def create_order(
 
         user = user_result.scalar_one_or_none()
 
-        if user is None:
+        if user is None or user.is_blocked:
             return None
 
 
         plan_result = await session.execute(
             select(Plan).where(
-                Plan.id == plan_id
+                Plan.id == plan_id,
+                Plan.is_active.is_(True)
             )
         )
 
@@ -37,13 +39,13 @@ async def create_order(
             user_id=user.id,
             plan_id=plan.id,
             price=plan.price,
-            status="pending_payment"
+            status=OrderStatus.PENDING_PAYMENT.value
         )
 
         session.add(order)
 
         await session.commit()
 
-        await session.refresh(order)
+        await session.refresh(order, attribute_names=["plan"])
 
         return order

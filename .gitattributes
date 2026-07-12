@@ -1,0 +1,27 @@
+# Auto detect text files
+* text=auto eol=lf
+
+# Python
+*.py text eol=lf
+
+# Markdown
+*.md text eol=lf
+
+# YAML
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Shell
+*.sh text eol=lf
+
+# Windows scripts
+*.bat text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary

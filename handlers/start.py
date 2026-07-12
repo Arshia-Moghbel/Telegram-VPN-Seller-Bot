@@ -32,6 +32,10 @@ async def start(message: Message):
             session.add(new_user)
             await session.commit()
 
+        elif user.is_blocked:
+            await message.answer("⛔ حساب شما مسدود شده است. برای پیگیری با پشتیبانی تماس بگیرید.")
+            return
+
     await message.answer(
         "سلام 👋\n\n"
         "به VPNifi خوش آمدی.\n\n"

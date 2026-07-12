@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, String, ForeignKey, DateTime
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -27,6 +27,12 @@ class User(Base):
         default=datetime.utcnow
     )
 
+    is_blocked: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     orders: Mapped[list["Order"]] = relationship(
         back_populates="user"
     )
@@ -47,9 +53,11 @@ class Order(Base):
 
     price: Mapped[int] = mapped_column()
 
+    from models.order_status import OrderStatus
+
     status: Mapped[str] = mapped_column(
         String(50),
-        default="pending_payment"
+        default=OrderStatus.PENDING_PAYMENT.value
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -63,6 +71,12 @@ class Order(Base):
 
     plan: Mapped["Plan"] = relationship(
         back_populates="orders"
+    )
+
+    receipt: Mapped["Receipt | None"] = relationship(
+        back_populates="order",
+        uselist=False,
+        cascade="all, delete-orphan"
     )
 
 
@@ -85,17 +99,73 @@ class Plan(Base):
         String(50)
     )
 
+    description: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
     is_active: Mapped[bool] = mapped_column(
         default=True
     )
+
 
     orders: Mapped[list["Order"]] = relationship(
         back_populates="plan"
     )
 
 
+# Receipt model
+class Receipt(Base):
+    __tablename__ = "receipts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    order_id: Mapped[int] = mapped_column(
+        ForeignKey("orders.id"),
+        unique=True
+    )
+
+    telegram_file_id: Mapped[str] = mapped_column(
+        String(255)
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow
+    )
+
+    order: Mapped["Order"] = relationship(
+        back_populates="receipt"
+    )
+
+
+class AdminSetting(Base):
+    __tablename__ = "admin_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    key: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        index=True,
+    )
+
+    value: Mapped[str] = mapped_column(
+        String(500),
+        default="",
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 __all__ = [
     "User",
     "Order",
-    "Plan"
+    "Plan",
+    "Receipt",
+    "AdminSetting",
 ]
