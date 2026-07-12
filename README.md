@@ -15,12 +15,12 @@ The long-term goal is to provide automatic VPN provisioning, payment processing,
 
 ### User
 - User registration
-- Browse VPN plans
+- Browse VPN plans and tariffs
 - Create orders
 - Upload payment receipt
-- Order history
-- Subscription renewal
-- Support system
+- Server overview
+- Connection guides for Android, iOS, Windows, and macOS
+- Support contact
 
 ### Admin
 - Order management
@@ -115,8 +115,9 @@ Database
 - ✅ Database integration
 - ✅ VPN plans
 - ✅ Order creation
-- 🚧 Payment workflow
-- 🚧 Admin panel
+- ✅ Payment workflow
+- ✅ Admin panel
+- ✅ Tariffs, support, servers, and connection guides
 - ⏳ Automatic VPN provisioning
 
 ## License

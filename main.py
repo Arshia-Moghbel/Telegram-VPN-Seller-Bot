@@ -3,6 +3,7 @@ from handlers.shop import router as shop_router
 from handlers.payment import router as payment_router
 from handlers.start import router
 from handlers.admin import router as admin_router
+from handlers.info import router as info_router
 import asyncio
 import logging
 
@@ -23,6 +24,7 @@ async def main():
     dp.include_router(admin_router)
     dp.include_router(router)
     dp.include_router(shop_router)
+    dp.include_router(info_router)
     dp.include_router(payment_router)
 
     await dp.start_polling(bot)
