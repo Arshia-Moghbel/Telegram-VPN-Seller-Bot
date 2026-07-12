@@ -1,9 +1,10 @@
 # Vpnifi - Telegram VPN Seller Bot
 
 A production-oriented Telegram bot for selling and managing VPN subscriptions, built with Python and aiogram.
+Address: @Vpnifi26_bot
 
 > **Status:** 🚧 In Active Development
-Address: @Vpnifi26_bot
+
 ## Overview
 
 Vpnifi is a modular Telegram bot for selling and managing VPN subscriptions. The project is being developed with production-quality architecture in mind, making it suitable both as a real commercial service and as a portfolio project.

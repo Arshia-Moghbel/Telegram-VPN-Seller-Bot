@@ -8,7 +8,7 @@ async def create_plans_keyboard(plans):
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    text=f"{plan.name} - {plan.price:,} تومان",
+                    text=f"{plan.name} | {plan.price:,} تومان",
                     callback_data=f"plan_{plan.id}"
                 )
             ]

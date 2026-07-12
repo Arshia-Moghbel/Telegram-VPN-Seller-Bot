@@ -93,6 +93,11 @@ class Plan(Base):
         String(50)
     )
 
+    description: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
     is_active: Mapped[bool] = mapped_column(
         default=True
     )

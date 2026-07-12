@@ -30,3 +30,16 @@ async def create_db():
     
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_migrate_schema)
+
+
+def _migrate_schema(connection):
+    columns = {
+        column["name"]
+        for column in connection.dialect.get_columns(connection, "plans")
+    }
+
+    if "description" not in columns:
+        connection.exec_driver_sql(
+            "ALTER TABLE plans ADD COLUMN description VARCHAR(500)"
+        )

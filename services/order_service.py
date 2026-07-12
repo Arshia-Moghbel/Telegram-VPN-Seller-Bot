@@ -24,7 +24,8 @@ async def create_order(
 
         plan_result = await session.execute(
             select(Plan).where(
-                Plan.id == plan_id
+                Plan.id == plan_id,
+                Plan.is_active.is_(True)
             )
         )
 
@@ -45,6 +46,6 @@ async def create_order(
 
         await session.commit()
 
-        await session.refresh(order)
+        await session.refresh(order, attribute_names=["plan"])
 
         return order
