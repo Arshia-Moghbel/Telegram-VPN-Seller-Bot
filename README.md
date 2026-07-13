@@ -65,10 +65,10 @@ Vpnifi26_bot/
 - [x] Order model
 
 ### Version 0.2
-- [ ] Payment workflow
-- [ ] Receipt upload
-- [ ] Admin panel
-- [ ] Order management
+- [x] Payment workflow
+- [x] Receipt upload
+- [x] Admin panel
+- [x] Order management
 
 ### Version 0.3
 - [ ] PostgreSQL
@@ -76,7 +76,7 @@ Vpnifi26_bot/
 - [ ] Docker
 - [ ] Logging
 
-### Version 1.0
+### Version 4.0
 - [ ] Automatic VPN provisioning
 - [ ] Multiple VPN servers
 - [ ] Production deployment
