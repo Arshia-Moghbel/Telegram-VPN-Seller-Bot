@@ -19,7 +19,7 @@ class Settings:
 
 settings = Settings(
     bot_token=os.getenv("BOT_TOKEN", ""),
-    admin_id=int(os.getenv("ADMIN_ID", "7311139872")),
+    admin_id=int(os.getenv("ADMIN_ID") or "7311139872"),
     database_url=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///vpnifi.db"),
     log_level=os.getenv("LOG_LEVEL", "INFO"),
     payment_card=os.getenv("PAYMENT_CARD", ""),
