@@ -96,6 +96,15 @@ async def find_users(query: str) -> list[User]:
         return list((await session.execute(statement.order_by(User.id.desc()).limit(20))).scalars())
 
 
+async def get_users(limit: int = 50) -> list[User]:
+    async with async_session() as session:
+        return list(
+            (
+                await session.execute(select(User).order_by(User.created_at.desc()).limit(limit))
+            ).scalars()
+        )
+
+
 async def get_user(user_id: int) -> User | None:
     async with async_session() as session:
         return await session.get(User, user_id)

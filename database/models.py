@@ -108,6 +108,12 @@ class Plan(Base):
         default=True
     )
 
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
 
     orders: Mapped[list["Order"]] = relationship(
         back_populates="plan"

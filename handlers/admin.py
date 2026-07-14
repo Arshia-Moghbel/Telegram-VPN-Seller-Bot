@@ -13,6 +13,7 @@ from db import async_session
 from keyboards.admin import (
     admin_panel_keyboard,
     back_to_admin_keyboard,
+    confirm_plan_deletion_keyboard,
     orders_keyboard,
     plan_details_keyboard,
     plan_list_keyboard,
@@ -32,6 +33,7 @@ from services.admin_service import (
     get_recent_orders,
     get_user,
     get_user_orders,
+    get_users,
     save_payment_setting,
     set_user_blocked,
 )
@@ -214,6 +216,28 @@ async def show_order_details(callback: CallbackQuery):
 
 
 @router.callback_query(F.data == "admin_users")
+async def show_users(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+
+    users = await get_users()
+    if not users:
+        await callback.message.edit_text(
+            "👥 هنوز کاربری ثبت نشده است.",
+            reply_markup=back_to_admin_keyboard(),
+        )
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(
+        "👥 کاربران اخیر:\n\nبرای مشاهدهٔ جزئیات، یک کاربر را انتخاب کنید.",
+        reply_markup=users_keyboard(users),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_users_search")
 async def request_user_search(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
         await callback.answer("دسترسی ندارید.", show_alert=True)
@@ -252,7 +276,7 @@ async def show_user_orders(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.regexp(r"^admin_user_(block|unblock)_\\d+$"))
+@router.callback_query(F.data.regexp(r"^admin_user_(block|unblock)_\d+$"))
 async def change_user_block_status(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("دسترسی ندارید.", show_alert=True)
@@ -270,7 +294,7 @@ async def change_user_block_status(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.regexp(r"^admin_user_\\d+$"))
+@router.callback_query(F.data.regexp(r"^admin_user_\d+$"))
 async def show_user_details(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("دسترسی ندارید.", show_alert=True)
@@ -334,7 +358,11 @@ async def list_plans(callback: CallbackQuery):
         return
 
     async with async_session() as session:
-        plans = (await session.execute(select(Plan).order_by(Plan.id))).scalars().all()
+        plans = (
+            await session.execute(
+                select(Plan).where(Plan.is_deleted.is_(False)).order_by(Plan.id)
+            )
+        ).scalars().all()
 
     await callback.message.edit_text(
         "📋 یکی از پلن‌ها را انتخاب کنید:",
@@ -518,32 +546,56 @@ async def toggle_plan(callback: CallbackQuery):
     await callback.answer("وضعیت پلن تغییر کرد.")
 
 
-@router.callback_query(F.data.startswith("plan_delete_"))
-async def delete_plan(callback: CallbackQuery):
+@router.callback_query(F.data.regexp(r"^plan_delete_\d+$"))
+async def request_plan_deletion(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("دسترسی ندارید.", show_alert=True)
         return
+
     plan_id = int(callback.data.removeprefix("plan_delete_"))
     async with async_session() as session:
         plan = await session.get(Plan, plan_id)
-        if plan is None:
+        if plan is None or plan.is_deleted:
             await callback.answer("پلن پیدا نشد.", show_alert=True)
             return
         has_orders = (
             await session.execute(select(Order.id).where(Order.plan_id == plan_id).limit(1))
         ).scalar_one_or_none()
-        if has_orders is not None:
-            plan.is_active = False
-            await session.commit()
-            await callback.message.edit_text(
-                "این پلن سفارش دارد؛ برای حفظ تاریخچه، به‌جای حذف غیرفعال شد.",
-                reply_markup=plans_management_keyboard(),
-            )
-            await callback.answer()
+
+    history_note = (
+        "این پلن سفارش‌های قبلی دارد. پس از حذف، جزئیات سفارش‌ها و تاریخچه حفظ می‌شوند."
+        if has_orders is not None
+        else "این پلن هنوز سفارشی ندارد."
+    )
+    await callback.message.edit_text(
+        f"🗑 حذف پلن\n\n{plan_text(plan)}\n\n{history_note}\n\n"
+        "پس از تأیید، پلن دیگر برای خرید یا مدیریت نمایش داده نمی‌شود.",
+        reply_markup=confirm_plan_deletion_keyboard(plan.id),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("plan_delete_confirm_"))
+async def confirm_plan_deletion(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+
+    plan_id = int(callback.data.removeprefix("plan_delete_confirm_"))
+    async with async_session() as session:
+        plan = await session.get(Plan, plan_id)
+        if plan is None or plan.is_deleted:
+            await callback.answer("پلن پیدا نشد یا قبلاً حذف شده است.", show_alert=True)
             return
-        await session.delete(plan)
+        plan.is_active = False
+        plan.is_deleted = True
         await session.commit()
-    await callback.message.edit_text("✅ پلن حذف شد.", reply_markup=plans_management_keyboard())
+
+    await callback.message.edit_text(
+        "✅ پلن حذف شد و دیگر برای خرید نمایش داده نمی‌شود.\n\n"
+        "اطلاعات آن در سفارش‌ها و تاریخچهٔ قبلی محفوظ است.",
+        reply_markup=plans_management_keyboard(),
+    )
     await callback.answer()
 
 

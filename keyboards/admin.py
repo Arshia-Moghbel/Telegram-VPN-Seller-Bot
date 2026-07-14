@@ -81,6 +81,7 @@ def users_keyboard(users) -> InlineKeyboardMarkup:
             text=f"{status} {user.telegram_id} — {username}",
             callback_data=f"admin_user_{user.id}",
         )
+    builder.button(text="🔎 جستجوی کاربر", callback_data="admin_users_search")
     builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
     builder.adjust(1)
     return builder.as_markup()
@@ -147,6 +148,15 @@ def plan_details_keyboard(plan_id: int, is_active: bool):
     builder.button(text="◀️ بازگشت", callback_data="plan_list")
     builder.adjust(2, 2, 1, 1, 1)
     return builder.as_markup()
+
+
+def confirm_plan_deletion_keyboard(plan_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 بله، حذف شود", callback_data=f"plan_delete_confirm_{plan_id}")],
+            [InlineKeyboardButton(text="◀️ انصراف", callback_data=f"plan_open_{plan_id}")],
+        ]
+    )
 
 
 async def receipt_review_keyboard(order_id: int):

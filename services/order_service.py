@@ -25,7 +25,8 @@ async def create_order(
         plan_result = await session.execute(
             select(Plan).where(
                 Plan.id == plan_id,
-                Plan.is_active.is_(True)
+                Plan.is_active.is_(True),
+                Plan.is_deleted.is_(False),
             )
         )
 

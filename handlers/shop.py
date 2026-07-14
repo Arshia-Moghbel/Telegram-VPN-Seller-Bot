@@ -34,7 +34,7 @@ async def buy_vpn(message: Message):
             return
 
         result = await session.execute(
-            select(Plan).where(Plan.is_active.is_(True))
+            select(Plan).where(Plan.is_active.is_(True), Plan.is_deleted.is_(False))
         )
 
         plans = result.scalars().all()

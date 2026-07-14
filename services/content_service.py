@@ -51,7 +51,9 @@ async def get_active_plans() -> list[Plan]:
         return list(
             (
                 await session.execute(
-                    select(Plan).where(Plan.is_active.is_(True)).order_by(Plan.price)
+                    select(Plan)
+                    .where(Plan.is_active.is_(True), Plan.is_deleted.is_(False))
+                    .order_by(Plan.price)
                 )
             ).scalars()
         )

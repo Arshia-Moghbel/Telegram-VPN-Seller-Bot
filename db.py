@@ -42,6 +42,10 @@ def _migrate_schema(connection):
         connection.exec_driver_sql(
             "ALTER TABLE plans ADD COLUMN description VARCHAR(500)"
         )
+    if "is_deleted" not in plan_columns:
+        connection.exec_driver_sql(
+            "ALTER TABLE plans ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0"
+        )
 
     user_columns = {
         column["name"] for column in connection.dialect.get_columns(connection, "users")
