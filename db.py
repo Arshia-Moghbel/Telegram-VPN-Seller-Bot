@@ -90,6 +90,16 @@ def _migrate_schema(connection):
             "ALTER TABLE plans ADD COLUMN duration_unit VARCHAR(10) NOT NULL DEFAULT 'month'"
         )
 
+    order_columns = {
+        column["name"] for column in connection.dialect.get_columns(connection, "orders")
+    }
+    if "discount_amount" not in order_columns:
+        connection.exec_driver_sql(
+            "ALTER TABLE orders ADD COLUMN discount_amount INTEGER NOT NULL DEFAULT 0"
+        )
+    if "coupon_code" not in order_columns:
+        connection.exec_driver_sql("ALTER TABLE orders ADD COLUMN coupon_code VARCHAR(50)")
+
     duration_column = next(
         (column for column in connection.dialect.get_columns(connection, "plans") if column["name"] == "duration"),
         None,

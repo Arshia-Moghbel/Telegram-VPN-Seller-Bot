@@ -5,6 +5,7 @@ import logging
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
@@ -15,7 +16,10 @@ from db import async_session
 from keyboards.admin import (
     admin_panel_keyboard,
     back_to_admin_keyboard,
+    button_settings_keyboard,
+    cancel_admin_keyboard,
     content_settings_keyboard,
+    coupons_keyboard,
     confirm_plan_deletion_keyboard,
     orders_keyboard,
     plan_details_keyboard,
@@ -38,12 +42,16 @@ from services.admin_service import (
     get_user,
     get_user_orders,
     get_users,
+    get_ui_labels,
     save_payment_setting,
     set_active_fulfillment_order_id,
     set_user_blocked,
 )
 from services.plan_duration import format_duration, parse_duration
+from services.coupon_service import create_coupon, get_coupons, normalize_coupon_code, toggle_coupon
+from filters.admin import AdminFilter
 from states.admin import AdminState
+from states.coupon import CouponState
 from states.fulfillment import FulfillmentState
 from states.plan import PlanState
 
@@ -61,6 +69,19 @@ PAYMENT_SETTING_LABELS = {
     "content_guide_ios": "آموزش iPhone/iPad",
     "content_guide_windows": "آموزش ویندوز",
     "content_guide_macos": "آموزش مک",
+    "ui_public_buy": "دکمهٔ خرید",
+    "ui_public_servers": "دکمهٔ سرورها",
+    "ui_public_guides": "دکمهٔ آموزش اتصال",
+    "ui_public_support": "دکمهٔ پشتیبانی",
+    "ui_admin_plans": "دکمهٔ مدیریت پلن‌ها",
+    "ui_admin_payment": "دکمهٔ تنظیمات پرداخت",
+    "ui_admin_content": "دکمهٔ متن‌های ربات",
+    "ui_admin_orders": "دکمهٔ سفارش‌ها",
+    "ui_admin_users": "دکمهٔ کاربران",
+    "ui_admin_stats": "دکمهٔ آمار",
+    "ui_admin_broadcast": "دکمهٔ ارسال همگانی",
+    "ui_admin_coupons": "دکمهٔ کدهای تخفیف",
+    "ui_admin_buttons": "دکمهٔ تنظیم دکمه‌ها",
 }
 
 
@@ -80,6 +101,24 @@ def plan_text(plan: Plan) -> str:
     )
 
 
+@router.message(AdminFilter(), StateFilter("*"), F.text.casefold() == "cancel")
+async def cancel_admin_flow(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("✅ عملیات لغو شد.", reply_markup=back_to_admin_keyboard())
+
+
+@router.callback_query(F.data == "admin_cancel_flow")
+async def cancel_admin_flow_button(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await state.clear()
+    await callback.message.edit_text(
+        "🛠 پنل مدیریت", reply_markup=admin_panel_keyboard(await get_ui_labels())
+    )
+    await callback.answer("عملیات لغو شد.")
+
+
 @router.message(Command("admin"))
 async def admin_panel(message: Message):
     if not is_admin(message.from_user.id):
@@ -88,7 +127,7 @@ async def admin_panel(message: Message):
 
     await message.answer(
         "🛠 پنل مدیریت",
-        reply_markup=admin_panel_keyboard(),
+        reply_markup=admin_panel_keyboard(await get_ui_labels()),
     )
 
 
@@ -98,7 +137,9 @@ async def show_admin_home(callback: CallbackQuery):
         await callback.answer("دسترسی ندارید.", show_alert=True)
         return
 
-    await callback.message.edit_text("🛠 پنل مدیریت", reply_markup=admin_panel_keyboard())
+    await callback.message.edit_text(
+        "🛠 پنل مدیریت", reply_markup=admin_panel_keyboard(await get_ui_labels())
+    )
     await callback.answer()
 
 
@@ -115,7 +156,7 @@ async def open_plans_management(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.in_({"admin_payment", "admin_settings"}))
+@router.callback_query(F.data == "admin_payment")
 async def show_payment_settings(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("دسترسی ندارید.", show_alert=True)
@@ -132,6 +173,119 @@ async def show_payment_settings(callback: CallbackQuery):
         reply_markup=payment_settings_keyboard(),
     )
     await callback.answer()
+
+
+@router.callback_query(F.data == "admin_buttons")
+async def show_button_settings(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    labels = await get_ui_labels()
+    await callback.message.edit_text(
+        "🔘 تنظیم دکمه‌ها\n\nهر دکمه را انتخاب کنید و متن جدید شامل ایموجی را بفرستید. "
+        "کاربران با /start منوی جدید را دریافت می‌کنند.",
+        reply_markup=button_settings_keyboard(labels),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_coupons")
+async def show_coupons(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    coupons = await get_coupons()
+    await callback.message.edit_text(
+        "🎟 کدهای تخفیف\n\nبرای غیرفعال/فعال‌کردن یک کد، روی آن بزنید.",
+        reply_markup=coupons_keyboard(coupons),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "coupon_add")
+async def add_coupon(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await state.set_state(CouponState.creating_code)
+    await callback.message.answer("کد تخفیف را وارد کنید (مثلاً WELCOME10)، یا «cancel» برای انصراف.")
+    await callback.answer()
+
+
+@router.message(CouponState.creating_code, F.text)
+async def coupon_code(message: Message, state: FSMContext):
+    code = normalize_coupon_code(message.text)
+    if not code or len(code) > 50 or not code.replace("_", "").isalnum():
+        await message.answer("کد فقط می‌تواند شامل حروف، عدد و _ باشد.")
+        return
+    await state.update_data(coupon_code=code)
+    await state.set_state(CouponState.creating_type)
+    await message.answer("نوع تخفیف را وارد کنید: «درصد» یا «تومان».")
+
+
+@router.message(CouponState.creating_type, F.text)
+async def coupon_type(message: Message, state: FSMContext):
+    value = message.text.strip().casefold()
+    if value in {"درصد", "percent", "%"}:
+        discount_type = "percent"
+    elif value in {"تومان", "fixed"}:
+        discount_type = "fixed"
+    else:
+        await message.answer("فقط «درصد» یا «تومان» وارد کنید.")
+        return
+    await state.update_data(coupon_type=discount_type)
+    await state.set_state(CouponState.creating_value)
+    await message.answer("مقدار تخفیف را وارد کنید:")
+
+
+@router.message(CouponState.creating_value, F.text)
+async def coupon_value(message: Message, state: FSMContext):
+    try:
+        value = int(message.text.replace(",", "").strip())
+        coupon_type = (await state.get_data())["coupon_type"]
+        if value <= 0 or (coupon_type == "percent" and value > 100):
+            raise ValueError
+    except ValueError:
+        await message.answer("مقدار نامعتبر است؛ درصد باید بین ۱ تا ۱۰۰ باشد.")
+        return
+    await state.update_data(coupon_value=value)
+    await state.set_state(CouponState.creating_limit)
+    await message.answer("حداکثر دفعات استفاده را وارد کنید، یا «نامحدود» بنویسید:")
+
+
+@router.message(CouponState.creating_limit, F.text)
+async def coupon_limit(message: Message, state: FSMContext):
+    raw_value = message.text.strip().casefold()
+    try:
+        limit = None if raw_value in {"نامحدود", "unlimited", "-"} else int(raw_value)
+        if limit is not None and limit <= 0:
+            raise ValueError
+    except ValueError:
+        await message.answer("یک عدد مثبت یا «نامحدود» وارد کنید.")
+        return
+    data = await state.get_data()
+    try:
+        coupon = await create_coupon(data["coupon_code"], data["coupon_type"], data["coupon_value"], limit)
+    except Exception:
+        logger.exception("Could not create coupon")
+        await message.answer("این کد قبلاً وجود دارد یا ذخیره‌سازی ناموفق بود.")
+        return
+    await state.clear()
+    await message.answer(f"✅ کد تخفیف «{coupon.code}» ساخته شد.", reply_markup=back_to_admin_keyboard())
+
+
+@router.callback_query(F.data.regexp(r"^coupon_toggle_\d+$"))
+async def change_coupon_status(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    coupon = await toggle_coupon(int(callback.data.rsplit("_", 1)[1]))
+    if coupon is None:
+        await callback.answer("کد پیدا نشد.", show_alert=True)
+        return
+    coupons = await get_coupons()
+    await callback.message.edit_text("🎟 کدهای تخفیف", reply_markup=coupons_keyboard(coupons))
+    await callback.answer("وضعیت کد تغییر کرد.")
 
 
 @router.callback_query(F.data == "admin_content")
@@ -162,7 +316,8 @@ async def edit_payment_setting(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminState.waiting_for_setting_value)
     await state.update_data(setting_key=key)
     await callback.message.answer(
-        f"مقدار جدید «{label}» را ارسال کنید (حداکثر ۵۰۰ کاراکتر):"
+        f"مقدار جدید «{label}» را ارسال کنید (حداکثر ۵۰۰ کاراکتر):",
+        reply_markup=cancel_admin_keyboard(),
     )
     await callback.answer()
 

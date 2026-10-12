@@ -1,12 +1,14 @@
 from db import async_session
-from database.models import Order, User, Plan
+from database.models import Coupon, CouponRedemption, Order, User, Plan
 from sqlalchemy import select
 from models.order_status import OrderStatus
+from services.coupon_service import discount_for_price, normalize_coupon_code
 
 
 async def create_order(
     telegram_id: int,
-    plan_id: int
+    plan_id: int,
+    coupon_code: str | None = None,
 ):
     async with async_session() as session:
 
@@ -59,14 +61,41 @@ async def create_order(
             return None
 
 
+        discount_amount = 0
+        normalized_code = None
+        coupon = None
+        if coupon_code:
+            normalized_code = normalize_coupon_code(coupon_code)
+            coupon = await session.scalar(select(Coupon).where(Coupon.code == normalized_code))
+            if coupon is None or not coupon.is_active:
+                return None
+            if coupon.max_uses is not None and coupon.uses_count >= coupon.max_uses:
+                return None
+            redemption = await session.scalar(
+                select(CouponRedemption).where(
+                    CouponRedemption.coupon_id == coupon.id,
+                    CouponRedemption.user_id == user.id,
+                )
+            )
+            if redemption is not None:
+                return None
+            discount_amount = discount_for_price(coupon, plan.price)
+
         order = Order(
             user_id=user.id,
             plan_id=plan.id,
-            price=plan.price,
+            price=plan.price - discount_amount,
+            discount_amount=discount_amount,
+            coupon_code=normalized_code,
             status=OrderStatus.PENDING_PAYMENT.value
         )
 
         session.add(order)
+
+        if coupon is not None:
+            coupon.uses_count += 1
+            await session.flush()
+            session.add(CouponRedemption(coupon_id=coupon.id, user_id=user.id, order_id=order.id))
 
         await session.commit()
 

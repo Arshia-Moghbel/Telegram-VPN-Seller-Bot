@@ -18,6 +18,23 @@ PAYMENT_SETTING_DEFAULTS = {
 }
 EDITABLE_SETTING_DEFAULTS = PAYMENT_SETTING_DEFAULTS | CONTENT_DEFAULTS
 
+UI_LABEL_DEFAULTS = {
+    "ui_public_buy": "🛒 خرید VPN",
+    "ui_public_servers": "🌍 سرورها",
+    "ui_public_guides": "📖 آموزش اتصال",
+    "ui_public_support": "📞 پشتیبانی",
+    "ui_admin_plans": "📦 مدیریت پلن‌ها",
+    "ui_admin_payment": "💳 تنظیمات پرداخت",
+    "ui_admin_content": "📝 متن‌های ربات",
+    "ui_admin_orders": "📑 سفارش‌ها",
+    "ui_admin_users": "👥 کاربران",
+    "ui_admin_stats": "📊 آمار",
+    "ui_admin_broadcast": "📢 ارسال همگانی",
+    "ui_admin_buttons": "🔘 تنظیم دکمه‌ها",
+    "ui_admin_coupons": "🎟 کدهای تخفیف",
+}
+EDITABLE_SETTING_DEFAULTS |= UI_LABEL_DEFAULTS
+
 # There is currently one configured administrator.  Persisting this value means
 # a restart does not strand an approved order before its VPN configuration is
 # delivered.
@@ -63,6 +80,17 @@ async def get_content_settings() -> dict[str, str]:
         ).scalars()
         saved_values = {row.key: row.value for row in rows}
     return {key: saved_values.get(key, default) for key, default in CONTENT_DEFAULTS.items()}
+
+
+async def get_ui_labels() -> dict[str, str]:
+    async with async_session() as session:
+        rows = (
+            await session.execute(
+                select(AdminSetting).where(AdminSetting.key.in_(UI_LABEL_DEFAULTS))
+            )
+        ).scalars()
+        saved_values = {row.key: row.value for row in rows}
+    return {key: saved_values.get(key, default) for key, default in UI_LABEL_DEFAULTS.items()}
 
 
 async def get_active_fulfillment_order_id() -> int | None:

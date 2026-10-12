@@ -14,6 +14,10 @@ async def create_plans_keyboard(plans):
             ]
         )
 
+    keyboard.append(
+        [InlineKeyboardButton(text="🎟 وارد کردن کد تخفیف", callback_data="coupon_enter")]
+    )
+
     return InlineKeyboardMarkup(
         inline_keyboard=keyboard
     )

@@ -2,55 +2,61 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def admin_panel_keyboard() -> InlineKeyboardMarkup:
+def admin_panel_keyboard(labels: dict[str, str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📦 مدیریت پلن‌ها",
+                    text=labels["ui_admin_plans"],
                     callback_data="admin_plans",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="💳 تنظیمات پرداخت",
+                    text=labels["ui_admin_payment"],
                     callback_data="admin_payment",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="📝 متن‌های ربات",
+                    text=labels["ui_admin_content"],
                     callback_data="admin_content",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="📑 سفارش‌ها",
+                    text=labels["ui_admin_orders"],
                     callback_data="admin_orders",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="👥 کاربران",
+                    text=labels["ui_admin_users"],
                     callback_data="admin_users",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="📊 آمار",
+                    text=labels["ui_admin_stats"],
                     callback_data="admin_stats",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="📢 ارسال همگانی",
+                    text=labels["ui_admin_broadcast"],
                     callback_data="admin_broadcast",
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="⚙️ تنظیمات",
-                    callback_data="admin_settings",
+                    text=labels["ui_admin_coupons"],
+                    callback_data="admin_coupons",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=labels["ui_admin_buttons"],
+                    callback_data="admin_buttons",
                 )
             ],
         ]
@@ -61,6 +67,14 @@ def back_to_admin_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="◀️ بازگشت به پنل", callback_data="admin_home")]
+        ]
+    )
+
+
+def cancel_admin_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✖️ لغو و بازگشت", callback_data="admin_cancel_flow")]
         ]
     )
 
@@ -89,6 +103,37 @@ def content_settings_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="◀️ بازگشت به پنل", callback_data="admin_home")],
         ]
     )
+
+
+def button_settings_keyboard(labels: dict[str, str]) -> InlineKeyboardMarkup:
+    keys = (
+        "ui_public_buy", "ui_public_servers", "ui_public_guides", "ui_public_support",
+        "ui_admin_plans", "ui_admin_payment", "ui_admin_content", "ui_admin_orders",
+        "ui_admin_users", "ui_admin_stats", "ui_admin_broadcast", "ui_admin_coupons",
+        "ui_admin_buttons",
+    )
+    builder = InlineKeyboardBuilder()
+    for key in keys:
+        builder.button(text=labels[key], callback_data=f"admin_setting_{key}")
+    builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def coupons_keyboard(coupons) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="➕ افزودن کد تخفیف", callback_data="coupon_add")
+    for coupon in coupons:
+        status = "✅" if coupon.is_active else "⛔️"
+        kind = "٪" if coupon.discount_type == "percent" else "تومان"
+        limit = str(coupon.max_uses) if coupon.max_uses is not None else "∞"
+        builder.button(
+            text=f"{status} {coupon.code} — {coupon.value}{kind} ({coupon.uses_count}/{limit})",
+            callback_data=f"coupon_toggle_{coupon.id}",
+        )
+    builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def users_keyboard(users) -> InlineKeyboardMarkup:
@@ -134,6 +179,7 @@ def plans_management_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="➕ افزودن پلن", callback_data="plan_add")
     builder.button(text="📋 فهرست پلن‌ها", callback_data="plan_list")
+    builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -147,6 +193,7 @@ def plan_list_keyboard(plans):
             callback_data=f"plan_open_{plan.id}",
         )
     builder.button(text="➕ افزودن پلن", callback_data="plan_add")
+    builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
     builder.adjust(1)
     return builder.as_markup()
 

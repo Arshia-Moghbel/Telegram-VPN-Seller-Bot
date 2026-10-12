@@ -7,10 +7,13 @@ from sqlalchemy import select
 
 from db import async_session
 from database.models import Plan, User
+from filters.button_text import ButtonTextFilter
 from keyboards.shop import create_plans_keyboard
 from services.order_service import create_order
 from services.plan_duration import format_duration
 from services.admin_service import get_payment_settings
+from services.coupon_service import get_coupon, normalize_coupon_code
+from states.coupon import CouponState
 from states.payment import PaymentState
 
 router = Router()
@@ -28,8 +31,7 @@ def plans_summary(plans: list[Plan]) -> str:
     return "\n\n".join(details)
 
 
-@router.message(F.text == "🛒 خرید VPN")
-async def buy_vpn(message: Message):
+async def show_available_plans(message: Message, state: FSMContext | None = None):
     async with async_session() as session:
         user = await session.scalar(select(User).where(User.telegram_id == message.from_user.id))
         if user is not None and user.is_blocked:
@@ -48,12 +50,54 @@ async def buy_vpn(message: Message):
         )
         return
 
+    coupon_code = (await state.get_data()).get("coupon_code") if state else None
+    coupon_note = ""
+    if coupon_code:
+        coupon = await get_coupon(coupon_code)
+        if coupon is not None:
+            coupon_note = f"\n\n🎟 کد تخفیف فعال: {coupon.code}"
+        else:
+            coupon_note = "\n\n⚠️ کد تخفیف دیگر معتبر نیست."
+            if state:
+                await state.update_data(coupon_code=None)
     keyboard = await create_plans_keyboard(plans)
 
     await message.answer(
-        f"🛒 پلن موردنظر خود را انتخاب کنید:\n\n{plans_summary(plans)}",
+        f"🛒 پلن موردنظر خود را انتخاب کنید:\n\n{plans_summary(plans)}{coupon_note}",
         reply_markup=keyboard
     )
+
+
+@router.message(ButtonTextFilter("ui_public_buy"))
+async def buy_vpn(message: Message, state: FSMContext):
+    await state.clear()
+    await show_available_plans(message, state)
+
+
+@router.callback_query(F.data == "coupon_enter")
+async def request_coupon(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(CouponState.waiting_for_code)
+    await callback.message.answer("کد تخفیف را بفرستید، یا «cancel» برای انصراف.")
+    await callback.answer()
+
+
+@router.message(CouponState.waiting_for_code, F.text.casefold() == "cancel")
+async def cancel_coupon(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("✅ واردکردن کد تخفیف لغو شد.")
+
+
+@router.message(CouponState.waiting_for_code, F.text)
+async def apply_coupon(message: Message, state: FSMContext):
+    code = normalize_coupon_code(message.text)
+    coupon = await get_coupon(code)
+    if coupon is None:
+        await message.answer("❌ کد تخفیف معتبر نیست یا ظرفیت آن تمام شده است.")
+        return
+    await state.update_data(coupon_code=code)
+    await state.set_state(None)
+    await message.answer(f"✅ کد «{code}» اعمال شد.")
+    await show_available_plans(message, state)
 
 
 @router.callback_query(F.data.regexp(r"^plan_\d+$"))
@@ -72,7 +116,8 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
 
     order = await create_order(
         telegram_id=callback.from_user.id,
-        plan_id=plan_id
+        plan_id=plan_id,
+        coupon_code=(await state.get_data()).get("coupon_code"),
     )
 
     if order is None:
@@ -80,7 +125,7 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
             "❌ خطایی در ثبت سفارش رخ داد. لطفاً دوباره تلاش کنید."
         )
         return
-    await state.update_data(order_id=order.id)
+    await state.update_data(order_id=order.id, coupon_code=None)
     await state.set_state(PaymentState.waiting_for_receipt)
 
     card_details = ""
@@ -103,7 +148,8 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
         f"✅ سفارش شما ثبت شد.\n\n"
         f"🆔 شماره سفارش: #{order.id}\n"
         f"📦 پلن: {order.plan.name}\n"
-        f"💰 مبلغ قابل پرداخت: {order.price:,} تومان\n\n"
+        f"💰 مبلغ قابل پرداخت: {order.price:,} تومان\n"
+        f"🎟 تخفیف: {order.discount_amount:,} تومان\n\n"
         f"{card_details}"
         f"پس از پرداخت، تصویر رسید را ارسال کنید.",
         parse_mode="HTML"

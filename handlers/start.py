@@ -1,5 +1,6 @@
 from db import async_session
 from database.models import User
+from services.admin_service import get_ui_labels
 from sqlalchemy import select
 from aiogram import Router
 from aiogram.filters import CommandStart
@@ -40,5 +41,5 @@ async def start(message: Message):
         "سلام 👋\n\n"
         "به VPNifi خوش آمدی.\n\n"
         "از منوی زیر یک گزینه را انتخاب کن:",
-        reply_markup=main_menu
+        reply_markup=main_menu(await get_ui_labels()),
     )

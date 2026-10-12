@@ -20,6 +20,12 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
+@router.message(PaymentState.waiting_for_receipt, F.text.casefold() == "cancel")
+async def cancel_receipt(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("✅ ارسال رسید لغو شد. می‌توانید دوباره از بخش خرید اقدام کنید.")
+
+
 async def process_receipt(message: Message, bot: Bot, order_id: int) -> bool:
     file_id = message.photo[-1].file_id
 

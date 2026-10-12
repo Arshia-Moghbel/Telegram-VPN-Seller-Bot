@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -52,6 +52,10 @@ class Order(Base):
     )
 
     price: Mapped[int] = mapped_column()
+
+    discount_amount: Mapped[int] = mapped_column(default=0, nullable=False)
+
+    coupon_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     from models.order_status import OrderStatus
 
@@ -174,10 +178,36 @@ class AdminSetting(Base):
     )
 
 
+class Coupon(Base):
+    __tablename__ = "coupons"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    discount_type: Mapped[str] = mapped_column(String(10))
+    value: Mapped[int] = mapped_column()
+    max_uses: Mapped[int | None] = mapped_column(nullable=True)
+    uses_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CouponRedemption(Base):
+    __tablename__ = "coupon_redemptions"
+    __table_args__ = (UniqueConstraint("coupon_id", "user_id", name="uq_coupon_user"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    coupon_id: Mapped[int] = mapped_column(ForeignKey("coupons.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 __all__ = [
     "User",
     "Order",
     "Plan",
     "Receipt",
     "AdminSetting",
+    "Coupon",
+    "CouponRedemption",
 ]

@@ -1,5 +1,6 @@
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
+from filters.button_text import ButtonTextFilter
 
 from keyboards.info import connection_guides_keyboard, support_keyboard
 from services.admin_service import get_content_settings, get_payment_settings
@@ -10,13 +11,13 @@ from services.content_service import (
 router = Router()
 
 
-@router.message(F.text == "🌍 سرورها")
+@router.message(ButtonTextFilter("ui_public_servers"))
 async def show_servers(message: Message):
     content = await get_content_settings()
     await message.answer(content["content_servers"])
 
 
-@router.message(F.text == "📖 آموزش اتصال")
+@router.message(ButtonTextFilter("ui_public_guides"))
 async def show_connection_guides(message: Message):
     await message.answer(
         "📖 آموزش اتصال\n\nدستگاه خود را انتخاب کنید:",
@@ -39,7 +40,7 @@ async def show_connection_guide(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message(F.text == "📞 پشتیبانی")
+@router.message(ButtonTextFilter("ui_public_support"))
 async def show_support(message: Message):
     payment_settings = await get_payment_settings()
     support_username = payment_settings["support_username"]
