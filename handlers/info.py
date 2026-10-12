@@ -1,31 +1,19 @@
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
-from keyboards.info import connection_guides_keyboard, support_keyboard, tariffs_keyboard
-from services.admin_service import get_payment_settings
+from keyboards.info import connection_guides_keyboard, support_keyboard
+from services.admin_service import get_content_settings, get_payment_settings
 from services.content_service import (
-    CONNECTION_GUIDES,
-    format_servers,
-    format_tariffs,
-    get_active_plans,
+    GUIDE_CONTENT_KEYS,
 )
 
 router = Router()
 
 
-@router.message(F.text == "💎 تعرفه‌ها")
-async def show_tariffs(message: Message):
-    plans = await get_active_plans()
-    if not plans:
-        await message.answer("در حال حاضر هیچ تعرفه فعالی وجود ندارد.")
-        return
-
-    await message.answer(format_tariffs(plans), reply_markup=tariffs_keyboard(plans))
-
-
 @router.message(F.text == "🌍 سرورها")
 async def show_servers(message: Message):
-    await message.answer(format_servers())
+    content = await get_content_settings()
+    await message.answer(content["content_servers"])
 
 
 @router.message(F.text == "📖 آموزش اتصال")
@@ -39,10 +27,13 @@ async def show_connection_guides(message: Message):
 @router.callback_query(F.data.startswith("guide_"))
 async def show_connection_guide(callback: CallbackQuery):
     platform = callback.data.removeprefix("guide_")
-    guide = CONNECTION_GUIDES.get(platform)
-    if guide is None:
+    content_key = GUIDE_CONTENT_KEYS.get(platform)
+    if content_key is None:
         await callback.answer("راهنما پیدا نشد.", show_alert=True)
         return
+
+    content = await get_content_settings()
+    guide = content[content_key]
 
     await callback.message.edit_text(guide, reply_markup=connection_guides_keyboard())
     await callback.answer()

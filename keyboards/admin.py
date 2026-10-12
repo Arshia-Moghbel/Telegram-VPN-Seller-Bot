@@ -19,6 +19,12 @@ def admin_panel_keyboard() -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
+                    text="📝 متن‌های ربات",
+                    callback_data="admin_content",
+                )
+            ],
+            [
+                InlineKeyboardButton(
                     text="📑 سفارش‌ها",
                     callback_data="admin_orders",
                 )
@@ -67,6 +73,19 @@ def payment_settings_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="🏦 بانک", callback_data="admin_setting_payment_bank")],
             [InlineKeyboardButton(text="🔖 شناسه پرداخت", callback_data="admin_setting_payment_reference")],
             [InlineKeyboardButton(text="💬 پشتیبانی", callback_data="admin_setting_support_username")],
+            [InlineKeyboardButton(text="◀️ بازگشت به پنل", callback_data="admin_home")],
+        ]
+    )
+
+
+def content_settings_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🌍 متن سرورها", callback_data="admin_setting_content_servers")],
+            [InlineKeyboardButton(text="🤖 آموزش اندروید", callback_data="admin_setting_content_guide_android")],
+            [InlineKeyboardButton(text="🍎 آموزش iPhone/iPad", callback_data="admin_setting_content_guide_ios")],
+            [InlineKeyboardButton(text="🪟 آموزش ویندوز", callback_data="admin_setting_content_guide_windows")],
+            [InlineKeyboardButton(text="💻 آموزش مک", callback_data="admin_setting_content_guide_macos")],
             [InlineKeyboardButton(text="◀️ بازگشت به پنل", callback_data="admin_home")],
         ]
     )

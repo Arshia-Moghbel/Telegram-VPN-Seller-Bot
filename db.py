@@ -1,6 +1,13 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from config import settings
+import os
+from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows does not support flock.
+    fcntl = None
 
 
 engine = create_async_engine(
@@ -18,6 +25,38 @@ async_session = sessionmaker(
 
 class Base(DeclarativeBase):
     pass
+
+
+_instance_lock_fd: int | None = None
+
+
+def acquire_instance_lock() -> None:
+    """Prevent two polling processes from consuming the same updates on one host."""
+    global _instance_lock_fd
+    if _instance_lock_fd is not None or fcntl is None:
+        return
+
+    lock_path = Path(settings.instance_lock_path)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(fd)
+        raise RuntimeError(
+            "Another bot process is already running (instance lock is held)."
+        ) from error
+    _instance_lock_fd = fd
+
+
+def release_instance_lock() -> None:
+    global _instance_lock_fd
+    if _instance_lock_fd is None:
+        return
+    if fcntl is not None:
+        fcntl.flock(_instance_lock_fd, fcntl.LOCK_UN)
+    os.close(_instance_lock_fd)
+    _instance_lock_fd = None
 
 
 async def get_session():
@@ -45,6 +84,24 @@ def _migrate_schema(connection):
     if "is_deleted" not in plan_columns:
         connection.exec_driver_sql(
             "ALTER TABLE plans ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0"
+        )
+    if "duration_unit" not in plan_columns:
+        connection.exec_driver_sql(
+            "ALTER TABLE plans ADD COLUMN duration_unit VARCHAR(10) NOT NULL DEFAULT 'month'"
+        )
+
+    duration_column = next(
+        (column for column in connection.dialect.get_columns(connection, "plans") if column["name"] == "duration"),
+        None,
+    )
+    if (
+        connection.dialect.name == "postgresql"
+        and duration_column is not None
+        and "integer" in str(duration_column["type"]).lower()
+    ):
+        connection.exec_driver_sql(
+            "ALTER TABLE plans ALTER COLUMN duration TYPE DOUBLE PRECISION "
+            "USING duration::double precision"
         )
 
     user_columns = {

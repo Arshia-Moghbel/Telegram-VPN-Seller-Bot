@@ -1,0 +1,21 @@
+[Unit]
+Description=Vpnifi Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vpnifi
+Group=vpnifi
+WorkingDirectory=/opt/vpnifi
+EnvironmentFile=/opt/vpnifi/.env
+Environment=INSTANCE_LOCK_PATH=/opt/vpnifi/data/vpnifi.lock
+ExecStart=/opt/vpnifi/.venv/bin/python main.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

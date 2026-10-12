@@ -1,4 +1,6 @@
+from aiogram.dispatcher.event.bases import SkipHandler
 from html import escape
+import logging
 
 from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramAPIError
@@ -13,6 +15,7 @@ from db import async_session
 from keyboards.admin import (
     admin_panel_keyboard,
     back_to_admin_keyboard,
+    content_settings_keyboard,
     confirm_plan_deletion_keyboard,
     orders_keyboard,
     plan_details_keyboard,
@@ -28,6 +31,7 @@ from services.admin_service import (
     find_users,
     get_broadcast_recipient_ids,
     get_dashboard_stats,
+    get_active_fulfillment_order_id,
     get_order,
     get_payment_settings,
     get_recent_orders,
@@ -35,13 +39,16 @@ from services.admin_service import (
     get_user_orders,
     get_users,
     save_payment_setting,
+    set_active_fulfillment_order_id,
     set_user_blocked,
 )
+from services.plan_duration import format_duration, parse_duration
 from states.admin import AdminState
 from states.fulfillment import FulfillmentState
 from states.plan import PlanState
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 PAYMENT_SETTING_LABELS = {
     "payment_card": "شماره کارت",
@@ -49,6 +56,11 @@ PAYMENT_SETTING_LABELS = {
     "payment_bank": "بانک",
     "payment_reference": "شناسه پرداخت",
     "support_username": "پشتیبانی",
+    "content_servers": "متن سرورها",
+    "content_guide_android": "آموزش اندروید",
+    "content_guide_ios": "آموزش iPhone/iPad",
+    "content_guide_windows": "آموزش ویندوز",
+    "content_guide_macos": "آموزش مک",
 }
 
 
@@ -61,7 +73,7 @@ def plan_text(plan: Plan) -> str:
     return (
         f"📦 {plan.name}\n\n"
         f"💰 قیمت: {plan.price:,} تومان\n"
-        f"📅 مدت: {plan.duration} ماه\n"
+        f"📅 مدت: {format_duration(plan.duration, plan.duration_unit)}\n"
         f"📶 حجم: {plan.traffic}\n"
         f"📝 توضیحات: {plan.description or '—'}\n"
         f"⚙️ وضعیت: {status}"
@@ -122,6 +134,19 @@ async def show_payment_settings(callback: CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(F.data == "admin_content")
+async def show_content_settings(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await callback.message.edit_text(
+        "📝 متن‌های ربات\n\nمتن سرورها یا راهنمای هر دستگاه را انتخاب و ویرایش کنید. "
+        "تغییرات در دیتابیس ذخیره می‌شوند و پس از ری‌استارت باقی می‌مانند.",
+        reply_markup=content_settings_keyboard(),
+    )
+    await callback.answer()
+
+
 @router.callback_query(F.data.startswith("admin_setting_"))
 async def edit_payment_setting(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
@@ -136,7 +161,9 @@ async def edit_payment_setting(callback: CallbackQuery, state: FSMContext):
 
     await state.set_state(AdminState.waiting_for_setting_value)
     await state.update_data(setting_key=key)
-    await callback.message.answer(f"مقدار جدید «{label}» را ارسال کنید:")
+    await callback.message.answer(
+        f"مقدار جدید «{label}» را ارسال کنید (حداکثر ۵۰۰ کاراکتر):"
+    )
     await callback.answer()
 
 
@@ -151,8 +178,14 @@ async def save_payment_setting_value(message: Message, state: FSMContext):
     if not key or not value:
         await message.answer("مقدار نامعتبر است. دوباره تلاش کنید.")
         return
+    if len(value) > 500:
+        await message.answer("متن نباید بیشتر از ۵۰۰ کاراکتر باشد.")
+        return
 
-    await save_payment_setting(key, value)
+    if not await save_payment_setting(key, value):
+        await message.answer("تنظیمات نامعتبر است.")
+        await state.clear()
+        return
     await state.clear()
     await message.answer("✅ تنظیمات ذخیره شد.", reply_markup=back_to_admin_keyboard())
 
@@ -342,6 +375,7 @@ async def send_broadcast(message: Message, state: FSMContext, bot: Bot):
             await bot.send_message(recipient_id, message.text)
             sent_count += 1
         except TelegramAPIError:
+            logger.warning("Broadcast delivery failed for Telegram user %s", recipient_id)
             continue
 
     await state.clear()
@@ -425,7 +459,10 @@ async def create_plan_price(message: Message, state: FSMContext):
         return
     await state.update_data(price=price)
     await state.set_state(PlanState.creating_duration)
-    await message.answer("مدت اشتراک را به ماه وارد کنید:")
+    await message.answer(
+        "مدت اشتراک را وارد کنید؛ مثلاً «1 ماه»، «0.01 ماه» یا «24 ساعت».\n"
+        "اگر فقط عدد بفرستید، واحد آن ماه در نظر گرفته می‌شود."
+    )
 
 
 @router.message(PlanState.creating_duration, F.text)
@@ -433,13 +470,11 @@ async def create_plan_duration(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     try:
-        duration = int(message.text.strip())
-        if duration <= 0:
-            raise ValueError
+        duration, duration_unit = parse_duration(message.text)
     except ValueError:
-        await message.answer("مدت باید یک عدد مثبت باشد.")
+        await message.answer("مدت نامعتبر است. نمونهٔ درست: «0.01 ماه» یا «24 ساعت».")
         return
-    await state.update_data(duration=duration)
+    await state.update_data(duration=duration, duration_unit=duration_unit)
     await state.set_state(PlanState.creating_traffic)
     await message.answer("حجم را وارد کنید (مثلاً 100GB یا نامحدود):")
 
@@ -483,7 +518,7 @@ async def edit_plan(callback: CallbackQuery, state: FSMContext):
     labels = {
         "name": "نام",
         "price": "قیمت",
-        "duration": "مدت به ماه",
+        "duration": "مدت",
         "traffic": "حجم",
         "description": "توضیحات",
     }
@@ -500,12 +535,14 @@ async def save_plan_edit(message: Message, state: FSMContext):
     field = data["field"]
     value = message.text.strip()
     try:
-        if field in {"price", "duration"}:
+        if field == "price":
             value = int(value.replace(",", ""))
             if value <= 0:
                 raise ValueError
+        elif field == "duration":
+            value, duration_unit = parse_duration(value)
     except ValueError:
-        await message.answer("یک عدد مثبت وارد کنید.")
+        await message.answer("یک مقدار مثبت وارد کنید. برای مدت: «0.01 ماه» یا «24 ساعت».")
         return
 
     if field == "description" and value == "-":
@@ -517,6 +554,8 @@ async def save_plan_edit(message: Message, state: FSMContext):
             await state.clear()
             return
         setattr(plan, field, value)
+        if field == "duration":
+            plan.duration_unit = duration_unit
         await session.commit()
         await session.refresh(plan)
     await state.clear()
@@ -599,22 +638,39 @@ async def confirm_plan_deletion(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("approve_order_"))
+@router.callback_query(F.data.regexp(r"^approve_order_\d+$"))
 async def approve_order(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
         await callback.answer("Access denied", show_alert=True)
         return
 
     order_id = int(callback.data.split("_")[-1])
+    active_order_id = await get_active_fulfillment_order_id()
+    if active_order_id is not None:
+        active_order = await get_order(active_order_id)
+        if active_order is not None and active_order.status == OrderStatus.PAID.value:
+            await callback.answer(
+                f"ابتدا کانفیگ سفارش #{active_order_id} را ارسال کنید.", show_alert=True
+            )
+            return
+        await set_active_fulfillment_order_id(None)
+
     async with async_session() as session:
         order = (await session.execute(select(Order).where(Order.id == order_id))).scalar_one_or_none()
         if order is None:
             await callback.answer("Order not found.", show_alert=True)
             return
+        if order.status != OrderStatus.WAITING_REVIEW.value:
+            await callback.answer("این سفارش قبلاً بررسی شده است.", show_alert=True)
+            return
         order.status = OrderStatus.PAID.value
         await session.commit()
 
-    await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ پرداخت تایید شد.")
+    await set_active_fulfillment_order_id(order.id)
+    await callback.message.edit_caption(
+        caption=(callback.message.caption or "") + "\n\n✅ پرداخت تایید شد.",
+        reply_markup=None,
+    )
     await state.set_state(FulfillmentState.waiting_for_config)
     await state.update_data(order_id=order.id)
     await callback.message.answer(
@@ -624,41 +680,62 @@ async def approve_order(callback: CallbackQuery, state: FSMContext):
     await callback.answer("حالا کانفیگ را ارسال کنید.")
 
 
-@router.message(FulfillmentState.waiting_for_config, F.text)
-async def send_config_to_user(message: Message, state: FSMContext, bot: Bot):
-    if not is_admin(message.from_user.id):
-        return
-
-    data = await state.get_data()
-    order_id = data.get("order_id")
+async def deliver_config(message: Message, bot: Bot, order_id: int) -> bool:
+    """Send first, then mark complete, so a failed Telegram call is retryable."""
     if order_id is None:
-        await state.clear()
-        await message.answer("سفارش پیدا نشد. دوباره تلاش کنید.")
-        return
+        return False
 
     async with async_session() as session:
         order = await session.get(Order, order_id)
         if order is None:
-            await state.clear()
             await message.answer("سفارش پیدا نشد.")
-            return
+            return False
+        if order.status != OrderStatus.PAID.value:
+            await message.answer("این سفارش در وضعیت آمادهٔ ارسال کانفیگ نیست.")
+            return False
         await session.refresh(order, attribute_names=["user"])
-        order.status = OrderStatus.COMPLETED.value
-        await session.commit()
         user_id = order.user.telegram_id
 
-    await bot.send_message(
-        chat_id=user_id,
-        text=(
-            "✅ پرداخت شما تایید شد.\n\n"
-            "🔐 کانفیگ VPN شما:\n"
-            f"<code>{escape(message.text)}</code>\n\n"
-            "برای راهنمای اتصال، با پشتیبانی در تماس باشید."
-        ),
-        parse_mode="HTML",
-    )
-    await state.clear()
+    try:
+        await bot.send_message(
+            chat_id=user_id,
+            text=(
+                "✅ پرداخت شما تایید شد.\n\n"
+                "🔐 کانفیگ VPN شما:\n"
+                f"<code>{escape(message.text)}</code>\n\n"
+                "برای راهنمای اتصال، با پشتیبانی در تماس باشید."
+            ),
+            parse_mode="HTML",
+        )
+    except TelegramAPIError:
+        await message.answer("❌ ارسال کانفیگ ناموفق بود؛ لطفاً دوباره تلاش کنید.")
+        return False
+
+    async with async_session() as session:
+        order = await session.get(Order, order_id)
+        if order is None or order.status != OrderStatus.PAID.value:
+            await message.answer("وضعیت سفارش هنگام ثبت نهایی تغییر کرد. آن را بررسی کنید.")
+            return False
+        order.status = OrderStatus.COMPLETED.value
+        await session.commit()
+    await set_active_fulfillment_order_id(None)
     await message.answer(f"✅ کانفیگ برای کاربر سفارش #{order_id} ارسال شد.")
+    return True
+
+
+@router.message(FulfillmentState.waiting_for_config, F.text)
+async def send_config_to_user(message: Message, state: FSMContext, bot: Bot):
+    if not is_admin(message.from_user.id):
+        return
+    order_id = (await state.get_data()).get("order_id")
+    if order_id is None:
+        order_id = await get_active_fulfillment_order_id()
+    if order_id is None:
+        await state.clear()
+        await message.answer("سفارش آمادهٔ ارسال کانفیگ پیدا نشد.")
+        return
+    if await deliver_config(message, bot, order_id):
+        await state.clear()
 
 
 @router.message(FulfillmentState.waiting_for_config)
@@ -667,7 +744,21 @@ async def invalid_config(message: Message):
         await message.answer("کانفیگ را به‌صورت پیام متنی ارسال کنید.")
 
 
-@router.callback_query(F.data.startswith("reject_order_"))
+@router.message(F.text, ~F.text.startswith("/"))
+async def resume_config_delivery(message: Message, bot: Bot):
+    """Resume config delivery after a restart, without blocking public handlers."""
+    if not is_admin(message.from_user.id):
+        raise SkipHandler
+
+    order_id = await get_active_fulfillment_order_id()
+
+    if order_id is None:
+        raise SkipHandler
+
+    await deliver_config(message, bot, order_id)
+
+
+@router.callback_query(F.data.regexp(r"^reject_order_\d+$"))
 async def reject_order(callback: CallbackQuery, bot: Bot):
     if not is_admin(callback.from_user.id):
         await callback.answer("Access denied", show_alert=True)
@@ -679,10 +770,16 @@ async def reject_order(callback: CallbackQuery, bot: Bot):
         if order is None:
             await callback.answer("Order not found.", show_alert=True)
             return
+        if order.status != OrderStatus.WAITING_REVIEW.value:
+            await callback.answer("این سفارش قبلاً بررسی شده است.", show_alert=True)
+            return
         await session.refresh(order, attribute_names=["user"])
         order.status = OrderStatus.CANCELED.value
         await session.commit()
 
-    await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ پرداخت رد شد.")
+    await callback.message.edit_caption(
+        caption=(callback.message.caption or "") + "\n\n❌ پرداخت رد شد.",
+        reply_markup=None,
+    )
     await bot.send_message(order.user.telegram_id, "❌ پرداخت تایید نشد. لطفاً با پشتیبانی تماس بگیرید.")
     await callback.answer("سفارش رد شد.")

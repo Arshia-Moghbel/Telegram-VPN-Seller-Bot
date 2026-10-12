@@ -21,6 +21,29 @@ async def create_order(
         if user is None or user.is_blocked:
             return None
 
+        open_orders = list(
+            (
+                await session.execute(
+                    select(Order).where(
+                        Order.user_id == user.id,
+                        Order.status.in_(
+                            (
+                                OrderStatus.PENDING_PAYMENT.value,
+                                OrderStatus.WAITING_REVIEW.value,
+                                OrderStatus.PAID.value,
+                            )
+                        ),
+                    )
+                )
+            ).scalars()
+        )
+        # A payment already being reviewed/fulfilled must not be replaced by a
+        # new checkout. Unpaid abandoned checkouts are safely expired below.
+        if any(order.status != OrderStatus.PENDING_PAYMENT.value for order in open_orders):
+            return None
+        for open_order in open_orders:
+            open_order.status = OrderStatus.EXPIRED.value
+
 
         plan_result = await session.execute(
             select(Plan).where(

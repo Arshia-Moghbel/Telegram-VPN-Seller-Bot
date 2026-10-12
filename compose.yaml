@@ -1,0 +1,33 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////app/data/vpnifi.db
+      INSTANCE_LOCK_PATH: /app/data/vpnifi.lock
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-m", "scripts.healthcheck"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  backup:
+    build: .
+    restart: unless-stopped
+    command: ["sh", "scripts/backup_loop.sh"]
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////app/data/vpnifi.db
+      BACKUP_DIR: /app/backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./data:/app/data:ro
+      - ./backups:/app/backups
+    depends_on:
+      bot:
+        condition: service_started

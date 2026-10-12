@@ -6,6 +6,7 @@ from config import settings
 from database.models import AdminSetting, Order, User
 from db import async_session
 from models.order_status import OrderStatus
+from services.content_service import CONTENT_DEFAULTS
 
 
 PAYMENT_SETTING_DEFAULTS = {
@@ -15,6 +16,12 @@ PAYMENT_SETTING_DEFAULTS = {
     "payment_reference": "",
     "support_username": settings.support_username,
 }
+EDITABLE_SETTING_DEFAULTS = PAYMENT_SETTING_DEFAULTS | CONTENT_DEFAULTS
+
+# There is currently one configured administrator.  Persisting this value means
+# a restart does not strand an approved order before its VPN configuration is
+# delivered.
+ACTIVE_FULFILLMENT_ORDER_KEY = "active_fulfillment_order_id"
 
 
 async def get_payment_settings() -> dict[str, str]:
@@ -33,7 +40,7 @@ async def get_payment_settings() -> dict[str, str]:
 
 
 async def save_payment_setting(key: str, value: str) -> bool:
-    if key not in PAYMENT_SETTING_DEFAULTS:
+    if key not in EDITABLE_SETTING_DEFAULTS:
         return False
 
     async with async_session() as session:
@@ -45,6 +52,42 @@ async def save_payment_setting(key: str, value: str) -> bool:
             setting.value = value
         await session.commit()
     return True
+
+
+async def get_content_settings() -> dict[str, str]:
+    async with async_session() as session:
+        rows = (
+            await session.execute(
+                select(AdminSetting).where(AdminSetting.key.in_(CONTENT_DEFAULTS))
+            )
+        ).scalars()
+        saved_values = {row.key: row.value for row in rows}
+    return {key: saved_values.get(key, default) for key, default in CONTENT_DEFAULTS.items()}
+
+
+async def get_active_fulfillment_order_id() -> int | None:
+    async with async_session() as session:
+        value = await session.scalar(
+            select(AdminSetting.value).where(AdminSetting.key == ACTIVE_FULFILLMENT_ORDER_KEY)
+        )
+    try:
+        order_id = int(value) if value else None
+    except (TypeError, ValueError):
+        return None
+    return order_id if order_id and order_id > 0 else None
+
+
+async def set_active_fulfillment_order_id(order_id: int | None) -> None:
+    async with async_session() as session:
+        setting = await session.scalar(
+            select(AdminSetting).where(AdminSetting.key == ACTIVE_FULFILLMENT_ORDER_KEY)
+        )
+        value = str(order_id) if order_id is not None else ""
+        if setting is None:
+            session.add(AdminSetting(key=ACTIVE_FULFILLMENT_ORDER_KEY, value=value))
+        else:
+            setting.value = value
+        await session.commit()
 
 
 async def get_dashboard_stats() -> dict[str, int]:

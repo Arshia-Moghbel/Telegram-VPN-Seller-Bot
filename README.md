@@ -91,6 +91,58 @@ pip install -r requirements.txt
 python3 main.py
 ```
 
+## Server deployment
+
+The bot validates `BOT_TOKEN` and `ADMIN_ID` at startup and uses an instance
+lock, so only one polling process can run on the same server. Copy
+`.env.example` to `.env`, fill in the credentials, and keep `.env` private.
+
+### Docker (recommended for one server)
+
+```bash
+docker compose up -d --build
+docker compose logs -f bot
+```
+
+The Compose configuration stores the SQLite database in `./data` and creates a
+rotating backup in `./backups` once per day. Change `BACKUP_RETENTION_DAYS` or
+`BACKUP_INTERVAL_SECONDS` in `.env` if needed. Check service health with:
+
+```bash
+docker compose ps
+```
+
+Direct local execution uses the database URL from `.env` (by default,
+`./vpnifi.db`); Docker uses `./data/vpnifi.db`. Both persist through restarts,
+but they are separate databases. Choose one mode for real operation. If you
+move from local execution to Docker, copy the existing database once before
+the first Docker start:
+
+```bash
+mkdir -p data
+cp vpnifi.db data/vpnifi.db
+```
+
+### systemd
+
+For a non-Docker Linux server, adapt
+`deploy/systemd/vpnifi.service` for the service user and installation path,
+then install and enable it:
+
+```bash
+sudo cp deploy/systemd/vpnifi.service /etc/systemd/system/vpnifi.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now vpnifi
+sudo journalctl -u vpnifi -f
+```
+
+Schedule `python scripts/backup_sqlite.py` with cron or a systemd timer for the
+same backup policy when not using Docker.
+
+SQLite is suitable for one bot instance. Before running multiple instances or
+requiring high availability, move to PostgreSQL and add a migration plan; do
+not point multiple running instances at the same SQLite database.
+
 ## Architecture
 
 ```

@@ -1,17 +1,19 @@
 from database.models import Plan
 from db import async_session
 from sqlalchemy import select
+from services.plan_duration import format_duration
 
 
-SERVER_REGIONS = (
-    ("🇩🇪", "آلمان", "اتصال پایدار برای استفاده روزمره"),
-    ("🇫🇮", "فنلاند", "مناسب وب‌گردی و پیام‌رسان‌ها"),
-    ("🇹🇷", "ترکیه", "گزینه‌ای نزدیک‌تر برای تأخیر کمتر"),
-)
-
-
-CONNECTION_GUIDES = {
-    "android": (
+CONTENT_DEFAULTS = {
+    "content_servers": (
+        "🌍 سرورها\n\n"
+        "🇩🇪 آلمان — اتصال پایدار برای استفاده روزمره\n"
+        "🇫🇮 فنلاند — مناسب وب‌گردی و پیام‌رسان‌ها\n"
+        "🇹🇷 ترکیه — گزینه‌ای نزدیک‌تر برای تأخیر کمتر\n\n"
+        "انتخاب سرور پس از دریافت کانفیگ امکان‌پذیر است. "
+        "برای وضعیت لحظه‌ای یا پیشنهاد مناسب، با پشتیبانی تماس بگیرید."
+    ),
+    "content_guide_android": (
         "🤖 آموزش اتصال در اندروید\n\n"
         "1. اپلیکیشن پیشنهادی سرویس را از فروشگاه معتبر نصب کنید.\n"
         "2. کانفیگ یا لینک اشتراک دریافتی را کپی کنید.\n"
@@ -19,7 +21,7 @@ CONNECTION_GUIDES = {
         "4. سرور را انتخاب کنید و روی Connect بزنید.\n\n"
         "در صورت خطا، تصویر خطا را برای پشتیبانی ارسال کنید."
     ),
-    "ios": (
+    "content_guide_ios": (
         "🍎 آموزش اتصال در آیفون و آیپد\n\n"
         "1. اپلیکیشن سازگار با کانفیگ دریافتی را از App Store نصب کنید.\n"
         "2. لینک اشتراک یا کانفیگ را کپی کنید.\n"
@@ -27,7 +29,7 @@ CONNECTION_GUIDES = {
         "4. اجازه افزودن VPN را تأیید و سپس Connect را لمس کنید.\n\n"
         "اگر اجازه VPN نمایش داده نشد، تنظیمات دستگاه را بررسی کنید."
     ),
-    "windows": (
+    "content_guide_windows": (
         "🪟 آموزش اتصال در ویندوز\n\n"
         "1. نرم‌افزار سازگار با کانفیگ دریافتی را نصب کنید.\n"
         "2. لینک یا فایل کانفیگ را در برنامه Import کنید.\n"
@@ -35,7 +37,7 @@ CONNECTION_GUIDES = {
         "4. پس از اتصال، با باز کردن یک وب‌سایت اتصال را بررسی کنید.\n\n"
         "اگر آنتی‌ویروس برنامه را مسدود کرد، از پشتیبانی راهنمایی بگیرید."
     ),
-    "macos": (
+    "content_guide_macos": (
         "💻 آموزش اتصال در مک\n\n"
         "1. برنامه سازگار با کانفیگ را نصب کنید.\n"
         "2. لینک اشتراک یا کانفیگ را Import کنید.\n"
@@ -43,6 +45,13 @@ CONNECTION_GUIDES = {
         "4. سرور را انتخاب و Connect را بزنید.\n\n"
         "برای خطاهای مجوز، بخش VPN در تنظیمات macOS را بررسی کنید."
     ),
+}
+
+GUIDE_CONTENT_KEYS = {
+    "android": "content_guide_android",
+    "ios": "content_guide_ios",
+    "windows": "content_guide_windows",
+    "macos": "content_guide_macos",
 }
 
 
@@ -65,20 +74,7 @@ def format_tariffs(plans: list[Plan]) -> str:
         description = f"\n📝 {plan.description}" if plan.description else ""
         details.append(
             f"📦 {plan.name}\n"
-            f"💰 {plan.price:,} تومان | 📅 {plan.duration} ماه | 📶 {plan.traffic}"
+            f"💰 {plan.price:,} تومان | 📅 {format_duration(plan.duration, plan.duration_unit)} | 📶 {plan.traffic}"
             f"{description}"
         )
     return "💎 تعرفه‌ها\n\n" + "\n\n".join(details)
-
-
-def format_servers() -> str:
-    server_lines = [
-        f"{flag} {name} — {description}"
-        for flag, name, description in SERVER_REGIONS
-    ]
-    return (
-        "🌍 سرورها\n\n"
-        + "\n".join(server_lines)
-        + "\n\nانتخاب سرور پس از دریافت کانفیگ امکان‌پذیر است. "
-        "برای وضعیت لحظه‌ای یا پیشنهاد مناسب، با پشتیبانی تماس بگیرید."
-    )

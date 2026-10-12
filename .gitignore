@@ -11,6 +11,9 @@ __pycache__/
 
 # SQLite Database
 *.db
+data/
+backups/
+.vpnifi.lock
 
 # macOS
 .DS_Store
@@ -85,3 +88,4 @@ htmlcov/
 *.tmp
 *.swp
 *.swo
+*.pem

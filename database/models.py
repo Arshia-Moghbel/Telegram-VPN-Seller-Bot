@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -93,7 +93,13 @@ class Plan(Base):
 
     price: Mapped[int] = mapped_column()
 
-    duration: Mapped[int] = mapped_column()
+    duration: Mapped[float] = mapped_column(Float)
+
+    duration_unit: Mapped[str] = mapped_column(
+        String(10),
+        default="month",
+        nullable=False,
+    )
     
     traffic: Mapped[str] = mapped_column(
         String(50)

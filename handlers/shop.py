@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -7,6 +9,7 @@ from db import async_session
 from database.models import Plan, User
 from keyboards.shop import create_plans_keyboard
 from services.order_service import create_order
+from services.plan_duration import format_duration
 from services.admin_service import get_payment_settings
 from states.payment import PaymentState
 
@@ -19,7 +22,7 @@ def plans_summary(plans: list[Plan]) -> str:
         description = f"\n   📝 {plan.description}" if plan.description else ""
         details.append(
             f"📦 {plan.name}\n"
-            f"   💰 {plan.price:,} تومان | 📅 {plan.duration} ماه | 📶 {plan.traffic}"
+            f"   💰 {plan.price:,} تومان | 📅 {format_duration(plan.duration, plan.duration_unit)} | 📶 {plan.traffic}"
             f"{description}"
         )
     return "\n\n".join(details)
@@ -53,12 +56,19 @@ async def buy_vpn(message: Message):
     )
 
 
-@router.callback_query(F.data.startswith("plan_"))
+@router.callback_query(F.data.regexp(r"^plan_\d+$"))
 async def select_plan(callback: CallbackQuery, state: FSMContext):
 
     await callback.answer()
 
     plan_id = int(callback.data.split("_")[1])
+
+    payment_settings = await get_payment_settings()
+    if not payment_settings["payment_card"].strip():
+        await callback.message.answer(
+            "⚠️ پرداخت آنلاین فعلاً آماده نیست. لطفاً بعداً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید."
+        )
+        return
 
     order = await create_order(
         telegram_id=callback.from_user.id,
@@ -73,7 +83,6 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
     await state.update_data(order_id=order.id)
     await state.set_state(PaymentState.waiting_for_receipt)
 
-    payment_settings = await get_payment_settings()
     card_details = ""
     if payment_settings["payment_card"]:
         bank = f"🏦 بانک: {payment_settings['payment_bank']}\n" if payment_settings["payment_bank"] else ""
@@ -83,8 +92,8 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
             else ""
         )
         card_details = (
-            f"💳 شماره کارت: <code>{payment_settings['payment_card']}</code>\n"
-            f"👤 به نام: {payment_settings['card_owner'] or '—'}\n"
+            f"💳 شماره کارت: <code>{escape(payment_settings['payment_card'])}</code>\n"
+            f"👤 به نام: {escape(payment_settings['card_owner']) or '—'}\n"
             f"{bank}{reference}\n"
         )
     else:
