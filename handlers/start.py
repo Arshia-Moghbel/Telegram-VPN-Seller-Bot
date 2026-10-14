@@ -1,6 +1,7 @@
 from db import async_session
 from database.models import User
 from services.admin_service import get_ui_labels
+from services.admin_service import get_content_settings
 from sqlalchemy import select
 from aiogram import Router
 from aiogram.filters import CommandStart
@@ -34,12 +35,12 @@ async def start(message: Message):
             await session.commit()
 
         elif user.is_blocked:
-            await message.answer("⛔ حساب شما مسدود شده است. برای پیگیری با پشتیبانی تماس بگیرید.")
+            content = await get_content_settings()
+            await message.answer(content["content_blocked"])
             return
 
+    content = await get_content_settings()
     await message.answer(
-        "سلام 👋\n\n"
-        "به VPNifi خوش آمدی.\n\n"
-        "از منوی زیر یک گزینه را انتخاب کن:",
+        content["content_welcome"],
         reply_markup=main_menu(await get_ui_labels()),
     )

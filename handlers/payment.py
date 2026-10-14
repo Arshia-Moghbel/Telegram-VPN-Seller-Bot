@@ -14,6 +14,7 @@ from keyboards.admin import receipt_review_keyboard
 
 from states.payment import PaymentState
 from services.payment_service import discard_receipt, save_receipt
+from services.admin_service import get_content_settings
 
 
 router = Router()
@@ -23,10 +24,12 @@ logger = logging.getLogger(__name__)
 @router.message(PaymentState.waiting_for_receipt, F.text.casefold() == "cancel")
 async def cancel_receipt(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("✅ ارسال رسید لغو شد. می‌توانید دوباره از بخش خرید اقدام کنید.")
+    content = await get_content_settings()
+    await message.answer(content["content_receipt_cancelled"])
 
 
 async def process_receipt(message: Message, bot: Bot, order_id: int) -> bool:
+    content = await get_content_settings()
     file_id = message.photo[-1].file_id
 
     receipt = await save_receipt(
@@ -36,9 +39,7 @@ async def process_receipt(message: Message, bot: Bot, order_id: int) -> bool:
     )
 
     if receipt is None:
-        await message.answer(
-            "❌ این سفارش دیگر آمادهٔ دریافت رسید نیست. لطفاً وضعیت سفارش را بررسی کنید."
-        )
+        await message.answer(content["content_receipt_unavailable"])
         return False
 
     async with async_session() as session:
@@ -65,15 +66,10 @@ async def process_receipt(message: Message, bot: Bot, order_id: int) -> bool:
     except TelegramAPIError:
         logger.exception("Could not forward receipt for order %s to the administrator", order_id)
         await discard_receipt(order_id)
-        await message.answer(
-            "❌ ارسال رسید برای پشتیبانی ناموفق بود. لطفاً چند لحظه دیگر دوباره تلاش کنید."
-        )
+        await message.answer(content["content_receipt_forward_failed"])
         return False
 
-    await message.answer(
-        "✅ رسید شما دریافت شد.\n\n"
-        "در حال بررسی توسط پشتیبانی است."
-    )
+    await message.answer(content["content_receipt_received"])
     return True
 
 
@@ -82,7 +78,8 @@ async def receive_receipt(message: Message, state: FSMContext, bot: Bot):
     order_id = (await state.get_data()).get("order_id")
     if order_id is None:
         await state.clear()
-        await message.answer("❌ سفارش پیدا نشد. لطفاً دوباره از بخش خرید اقدام کنید.")
+        content = await get_content_settings()
+        await message.answer(content["content_order_not_found"])
         return
     if await process_receipt(message, bot, order_id):
         await state.clear()
@@ -112,6 +109,5 @@ async def receive_receipt_after_restart(message: Message, bot: Bot):
 
 @router.message(PaymentState.waiting_for_receipt)
 async def invalid_receipt(message: Message):
-    await message.answer(
-        "❌ لطفاً فقط تصویر رسید پرداخت را ارسال کنید."
-    )
+    content = await get_content_settings()
+    await message.answer(content["content_receipt_image_only"])

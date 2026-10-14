@@ -19,6 +19,7 @@ from keyboards.admin import (
     button_settings_keyboard,
     cancel_admin_keyboard,
     content_settings_keyboard,
+    content_group_keyboard,
     coupons_keyboard,
     confirm_plan_deletion_keyboard,
     orders_keyboard,
@@ -65,14 +66,43 @@ PAYMENT_SETTING_LABELS = {
     "payment_reference": "شناسه پرداخت",
     "support_username": "پشتیبانی",
     "content_servers": "متن سرورها",
+    "content_welcome": "پیام خوش‌آمد",
+    "content_blocked": "پیام مسدودی",
     "content_guide_android": "آموزش اندروید",
     "content_guide_ios": "آموزش iPhone/iPad",
     "content_guide_windows": "آموزش ویندوز",
     "content_guide_macos": "آموزش مک",
+    "content_guides_menu": "منوی آموزش اتصال",
+    "content_support": "متن پشتیبانی",
+    "content_support_unavailable": "پشتیبانی تنظیم نشده",
+    "content_no_plans": "پلنی موجود نیست",
+    "content_choose_plan": "متن خرید و پلن‌ها",
+    "content_coupon_prompt": "درخواست کد تخفیف",
+    "content_coupon_cancelled": "لغو کد تخفیف",
+    "content_coupon_invalid": "کد تخفیف نامعتبر",
+    "content_coupon_applied": "کد تخفیف اعمال شد",
+    "content_coupon_active": "نمایش کد فعال",
+    "content_coupon_expired": "کد منقضی شده",
+    "content_payment_unavailable": "پرداخت غیرفعال",
+    "content_payment_details_missing": "اطلاعات کارت موجود نیست",
+    "content_order_created": "سفارش ثبت شد",
+    "content_order_failed": "خطای ثبت سفارش",
+    "content_receipt_cancelled": "لغو ارسال رسید",
+    "content_receipt_unavailable": "رسید قابل دریافت نیست",
+    "content_receipt_forward_failed": "خطای ارسال رسید",
+    "content_receipt_received": "رسید دریافت شد",
+    "content_order_not_found": "سفارش پیدا نشد",
+    "content_receipt_image_only": "درخواست تصویر رسید",
     "ui_public_buy": "دکمهٔ خرید",
     "ui_public_servers": "دکمهٔ سرورها",
     "ui_public_guides": "دکمهٔ آموزش اتصال",
     "ui_public_support": "دکمهٔ پشتیبانی",
+    "ui_coupon_enter": "دکمهٔ وارد کردن کد تخفیف",
+    "ui_guide_android": "دکمهٔ اندروید",
+    "ui_guide_ios": "دکمهٔ آیفون / آیپد",
+    "ui_guide_windows": "دکمهٔ ویندوز",
+    "ui_guide_macos": "دکمهٔ مک",
+    "ui_support_contact": "دکمهٔ ارتباط با پشتیبانی",
     "ui_admin_plans": "دکمهٔ مدیریت پلن‌ها",
     "ui_admin_payment": "دکمهٔ تنظیمات پرداخت",
     "ui_admin_content": "دکمهٔ متن‌های ربات",
@@ -294,9 +324,41 @@ async def show_content_settings(callback: CallbackQuery):
         await callback.answer("دسترسی ندارید.", show_alert=True)
         return
     await callback.message.edit_text(
-        "📝 متن‌های ربات\n\nمتن سرورها یا راهنمای هر دستگاه را انتخاب و ویرایش کنید. "
+        "📝 متن‌های ربات\n\nهمهٔ متن‌های کاربر را از این بخش ویرایش کنید. "
         "تغییرات در دیتابیس ذخیره می‌شوند و پس از ری‌استارت باقی می‌مانند.",
         reply_markup=content_settings_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_content_coupons")
+async def show_coupon_content_settings(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await callback.message.edit_text(
+        "🎟 متن‌های تخفیف",
+        reply_markup=content_group_keyboard((
+            "content_coupon_prompt", "content_coupon_cancelled", "content_coupon_invalid",
+            "content_coupon_applied", "content_coupon_active", "content_coupon_expired",
+        )),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin_content_payment")
+async def show_payment_content_settings(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await callback.message.edit_text(
+        "💳 متن‌های پرداخت",
+        reply_markup=content_group_keyboard((
+            "content_payment_unavailable", "content_payment_details_missing", "content_order_created",
+            "content_order_failed", "content_receipt_cancelled", "content_receipt_unavailable",
+            "content_receipt_forward_failed", "content_receipt_received", "content_order_not_found",
+            "content_receipt_image_only",
+        )),
     )
     await callback.answer()
 
@@ -316,7 +378,7 @@ async def edit_payment_setting(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminState.waiting_for_setting_value)
     await state.update_data(setting_key=key)
     await callback.message.answer(
-        f"مقدار جدید «{label}» را ارسال کنید (حداکثر ۵۰۰ کاراکتر):",
+        f"مقدار جدید «{label}» را ارسال کنید (حداکثر ۴۰۰۰ کاراکتر):",
         reply_markup=cancel_admin_keyboard(),
     )
     await callback.answer()
@@ -333,8 +395,8 @@ async def save_payment_setting_value(message: Message, state: FSMContext):
     if not key or not value:
         await message.answer("مقدار نامعتبر است. دوباره تلاش کنید.")
         return
-    if len(value) > 500:
-        await message.answer("متن نباید بیشتر از ۵۰۰ کاراکتر باشد.")
+    if len(value) > 4000:
+        await message.answer("متن نباید بیشتر از ۴۰۰۰ کاراکتر باشد.")
         return
 
     if not await save_payment_setting(key, value):

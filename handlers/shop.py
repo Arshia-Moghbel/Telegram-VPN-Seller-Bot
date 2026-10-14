@@ -11,8 +11,9 @@ from filters.button_text import ButtonTextFilter
 from keyboards.shop import create_plans_keyboard
 from services.order_service import create_order
 from services.plan_duration import format_duration
-from services.admin_service import get_payment_settings
+from services.admin_service import get_content_settings, get_payment_settings, get_ui_labels
 from services.coupon_service import get_coupon, normalize_coupon_code
+from services.content_service import render_content
 from states.coupon import CouponState
 from states.payment import PaymentState
 
@@ -32,10 +33,11 @@ def plans_summary(plans: list[Plan]) -> str:
 
 
 async def show_available_plans(message: Message, state: FSMContext | None = None):
+    content = await get_content_settings()
     async with async_session() as session:
         user = await session.scalar(select(User).where(User.telegram_id == message.from_user.id))
         if user is not None and user.is_blocked:
-            await message.answer("⛔ حساب شما مسدود شده است. برای پیگیری با پشتیبانی تماس بگیرید.")
+            await message.answer(content["content_blocked"])
             return
 
         result = await session.execute(
@@ -45,9 +47,7 @@ async def show_available_plans(message: Message, state: FSMContext | None = None
         plans = result.scalars().all()
 
     if not plans:
-        await message.answer(
-            "در حال حاضر هیچ پلنی فعال نیست."
-        )
+        await message.answer(content["content_no_plans"])
         return
 
     coupon_code = (await state.get_data()).get("coupon_code") if state else None
@@ -55,15 +55,19 @@ async def show_available_plans(message: Message, state: FSMContext | None = None
     if coupon_code:
         coupon = await get_coupon(coupon_code)
         if coupon is not None:
-            coupon_note = f"\n\n🎟 کد تخفیف فعال: {coupon.code}"
+            coupon_note = render_content(content["content_coupon_active"], code=coupon.code)
         else:
-            coupon_note = "\n\n⚠️ کد تخفیف دیگر معتبر نیست."
+            coupon_note = content["content_coupon_expired"]
             if state:
                 await state.update_data(coupon_code=None)
-    keyboard = await create_plans_keyboard(plans)
+    keyboard = await create_plans_keyboard(plans, await get_ui_labels())
 
     await message.answer(
-        f"🛒 پلن موردنظر خود را انتخاب کنید:\n\n{plans_summary(plans)}{coupon_note}",
+        render_content(
+            content["content_choose_plan"],
+            plans=plans_summary(plans),
+            coupon_note=coupon_note,
+        ),
         reply_markup=keyboard
     )
 
@@ -77,14 +81,16 @@ async def buy_vpn(message: Message, state: FSMContext):
 @router.callback_query(F.data == "coupon_enter")
 async def request_coupon(callback: CallbackQuery, state: FSMContext):
     await state.set_state(CouponState.waiting_for_code)
-    await callback.message.answer("کد تخفیف را بفرستید، یا «cancel» برای انصراف.")
+    content = await get_content_settings()
+    await callback.message.answer(content["content_coupon_prompt"])
     await callback.answer()
 
 
 @router.message(CouponState.waiting_for_code, F.text.casefold() == "cancel")
 async def cancel_coupon(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("✅ واردکردن کد تخفیف لغو شد.")
+    content = await get_content_settings()
+    await message.answer(content["content_coupon_cancelled"])
 
 
 @router.message(CouponState.waiting_for_code, F.text)
@@ -92,11 +98,13 @@ async def apply_coupon(message: Message, state: FSMContext):
     code = normalize_coupon_code(message.text)
     coupon = await get_coupon(code)
     if coupon is None:
-        await message.answer("❌ کد تخفیف معتبر نیست یا ظرفیت آن تمام شده است.")
+        content = await get_content_settings()
+        await message.answer(content["content_coupon_invalid"])
         return
     await state.update_data(coupon_code=code)
     await state.set_state(None)
-    await message.answer(f"✅ کد «{code}» اعمال شد.")
+    content = await get_content_settings()
+    await message.answer(render_content(content["content_coupon_applied"], code=code))
     await show_available_plans(message, state)
 
 
@@ -108,10 +116,9 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
     plan_id = int(callback.data.split("_")[1])
 
     payment_settings = await get_payment_settings()
+    content = await get_content_settings()
     if not payment_settings["payment_card"].strip():
-        await callback.message.answer(
-            "⚠️ پرداخت آنلاین فعلاً آماده نیست. لطفاً بعداً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید."
-        )
+        await callback.message.answer(content["content_payment_unavailable"])
         return
 
     order = await create_order(
@@ -121,9 +128,7 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
     )
 
     if order is None:
-        await callback.message.answer(
-            "❌ خطایی در ثبت سفارش رخ داد. لطفاً دوباره تلاش کنید."
-        )
+        await callback.message.answer(content["content_order_failed"])
         return
     await state.update_data(order_id=order.id, coupon_code=None)
     await state.set_state(PaymentState.waiting_for_receipt)
@@ -142,15 +147,16 @@ async def select_plan(callback: CallbackQuery, state: FSMContext):
             f"{bank}{reference}\n"
         )
     else:
-        card_details = "⚠️ اطلاعات کارت پرداخت هنوز تنظیم نشده است.\n\n"
+        card_details = content["content_payment_details_missing"]
 
     await callback.message.answer(
-        f"✅ سفارش شما ثبت شد.\n\n"
-        f"🆔 شماره سفارش: #{order.id}\n"
-        f"📦 پلن: {order.plan.name}\n"
-        f"💰 مبلغ قابل پرداخت: {order.price:,} تومان\n"
-        f"🎟 تخفیف: {order.discount_amount:,} تومان\n\n"
-        f"{card_details}"
-        f"پس از پرداخت، تصویر رسید را ارسال کنید.",
+        render_content(
+            content["content_order_created"],
+            order_id=order.id,
+            plan_name=escape(order.plan.name),
+            price=f"{order.price:,}",
+            discount=f"{order.discount_amount:,}",
+            payment_details=card_details,
+        ),
         parse_mode="HTML"
     )

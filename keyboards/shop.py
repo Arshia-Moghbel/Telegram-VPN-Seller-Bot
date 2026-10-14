@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-async def create_plans_keyboard(plans):
+async def create_plans_keyboard(plans, labels: dict[str, str]):
     keyboard = []
 
     for plan in plans:
@@ -15,7 +15,7 @@ async def create_plans_keyboard(plans):
         )
 
     keyboard.append(
-        [InlineKeyboardButton(text="🎟 وارد کردن کد تخفیف", callback_data="coupon_enter")]
+        [InlineKeyboardButton(text=labels["ui_coupon_enter"], callback_data="coupon_enter")]
     )
 
     return InlineKeyboardMarkup(

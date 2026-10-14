@@ -50,6 +50,9 @@ async def main():
         dp.include_router(payment_router)
         dp.errors.register(log_unhandled_update)
 
+        # Polling and a webhook cannot consume updates at the same time. This
+        # preserves queued messages while switching a deployment to polling.
+        await bot.delete_webhook(drop_pending_updates=False)
         logger.info("Starting Telegram bot polling")
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:

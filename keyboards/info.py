@@ -13,18 +13,18 @@ def tariffs_keyboard(plans) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def connection_guides_keyboard() -> InlineKeyboardMarkup:
+def connection_guides_keyboard(labels: dict[str, str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🤖 اندروید", callback_data="guide_android")],
-            [InlineKeyboardButton(text="🍎 آیفون / آیپد", callback_data="guide_ios")],
-            [InlineKeyboardButton(text="🪟 ویندوز", callback_data="guide_windows")],
-            [InlineKeyboardButton(text="💻 مک", callback_data="guide_macos")],
+            [InlineKeyboardButton(text=labels["ui_guide_android"], callback_data="guide_android")],
+            [InlineKeyboardButton(text=labels["ui_guide_ios"], callback_data="guide_ios")],
+            [InlineKeyboardButton(text=labels["ui_guide_windows"], callback_data="guide_windows")],
+            [InlineKeyboardButton(text=labels["ui_guide_macos"], callback_data="guide_macos")],
         ]
     )
 
 
-def support_keyboard(username: str) -> InlineKeyboardMarkup | None:
+def support_keyboard(username: str, labels: dict[str, str]) -> InlineKeyboardMarkup | None:
     normalized_username = username.strip().removeprefix("@")
     if not normalized_username:
         return None
@@ -32,7 +32,7 @@ def support_keyboard(username: str) -> InlineKeyboardMarkup | None:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="💬 ارتباط با پشتیبانی",
+                    text=labels["ui_support_contact"],
                     url=f"https://t.me/{normalized_username}",
                 )
             ]
