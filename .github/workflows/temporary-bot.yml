@@ -1,4 +1,4 @@
-name: For Test VPNifi Bot
+name: Run Bot Temporarily
 
 on:
   workflow_dispatch:
