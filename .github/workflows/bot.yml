@@ -1,0 +1,81 @@
+name: Run VPNifi Bot (Updated)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: "How long the bot should stay online"
+        required: true
+        default: "15"
+        type: choice
+        options:
+          - "5"
+          - "15"
+          - "30"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-telegram-bot
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      ADMIN_ID: ${{ secrets.ADMIN_ID }}
+      DATABASE_URL: sqlite+aiosqlite:///vpnifi.db
+      LOG_LEVEL: ${{ secrets.LOG_LEVEL || 'INFO' }}
+      PAYMENT_CARD: ${{ secrets.PAYMENT_CARD }}
+      CARD_OWNER: ${{ secrets.CARD_OWNER }}
+      SUPPORT_USERNAME: ${{ secrets.SUPPORT_USERNAME }}
+      INSTANCE_LOCK_PATH: .vpnifi.lock
+
+    steps:
+      - name: Check out latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Show checked-out commit
+        run: |
+          echo "Commit being tested:"
+          git log -1 --format='%h %s'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Check Python syntax
+        run: python -m compileall -q .
+
+      - name: Validate Telegram credentials
+        run: python -m scripts.healthcheck
+
+      - name: Run bot for selected duration
+        env:
+          DURATION_MINUTES: ${{ inputs.duration_minutes }}
+        run: |
+          set +e
+          timeout --signal=SIGINT --kill-after=30s \
+            "${DURATION_MINUTES}m" python -u main.py
+
+          exit_code=$?
+
+          if [ "$exit_code" -eq 124 ] || [ "$exit_code" -eq 130 ]; then
+            echo "Selected run time reached; stopping the bot."
+            exit 0
+          fi
+
+          exit "$exit_code"
