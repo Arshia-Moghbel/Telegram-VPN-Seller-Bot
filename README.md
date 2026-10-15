@@ -12,6 +12,8 @@ Vpnifi is a modular Telegram bot for selling and managing VPN subscriptions. The
 
 The long-term goal is to provide automatic VPN provisioning, payment processing, subscription management, and an extensible administration panel.
 
+This project is in Persian.
+
 ## Features
 
 ### User
@@ -33,7 +35,7 @@ The long-term goal is to provide automatic VPN provisioning, payment processing,
 
 ## Tech Stack
 
-- Python 3.13
+- Python 3.12
 - aiogram 3
 - SQLAlchemy 2
 - SQLite (development)
@@ -43,17 +45,33 @@ The long-term goal is to provide automatic VPN provisioning, payment processing,
 ## Project Structure
 
 ```text
-Vpnifi26_bot/
-├── handlers/
-├── services/
+Telegram-VPN-Seller-Bot/
+├── .github/
 ├── database/
+├── deploy/
+├── Filters/
+├── handlers/
 ├── keyboards/
-├── states/
 ├── models/
-├── utils/
-├── logs/
+├── scripts/
+├── services/
+├── states/
+├── tests/
+├── .dockerignore
+├── .env.example
+├── .gitattributes
+├── .gitignore
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── Dockerfile
+├── LICENSE
+├── README.md
+├── compose.yaml
+├── config.py
+├── db.py
 ├── main.py
-└── config.py
+├── requirements.txt
+└── vpnifi.db
 ```
 
 ## Roadmap
@@ -72,9 +90,9 @@ Vpnifi26_bot/
 - [x] Order management
 
 ### Version 0.3
-- [ ] PostgreSQL
+- [x] PostgreSQL
 - [ ] Alembic
-- [ ] Docker
+- [x] Docker
 - [ ] Logging
 
 ### Version 4.0
@@ -85,10 +103,10 @@ Vpnifi26_bot/
 ## Development
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python3 main.py
+python main.py
 ```
 
 ## Server deployment
