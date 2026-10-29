@@ -28,6 +28,7 @@ from keyboards.admin import (
     plans_management_keyboard,
     payment_settings_keyboard,
     receipt_review_keyboard,
+    servers_keyboard,
     user_details_keyboard,
     users_keyboard,
 )
@@ -55,6 +56,8 @@ from states.admin import AdminState
 from states.coupon import CouponState
 from states.fulfillment import FulfillmentState
 from states.plan import PlanState
+from states.server import ServerState
+from services.provisioning_service import add_server, get_servers, select_server_for_provisioning
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -230,6 +233,55 @@ async def show_coupons(callback: CallbackQuery):
         reply_markup=coupons_keyboard(coupons),
     )
     await callback.answer()
+
+
+@router.callback_query(F.data == "admin_servers")
+async def show_servers_management(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    servers = await get_servers()
+    text = "🌐 مدیریت سرورها\n\n"
+    text += "هنوز سروری ثبت نشده است." if not servers else "انتخاب خودکار بر اساس ظرفیت و اولویت انجام می‌شود."
+    await callback.message.edit_text(text, reply_markup=servers_keyboard(servers))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "server_add")
+async def request_server(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await state.set_state(ServerState.waiting_for_server)
+    await callback.message.answer(
+        "مشخصات سرور را به این شکل بفرستید:\n"
+        "نام | موقعیت | پروتکل | اولویت | ظرفیت\n\n"
+        "نمونه: Germany-1 | آلمان | VLESS | 10 | 200"
+    )
+    await callback.answer()
+
+
+@router.message(ServerState.waiting_for_server, F.text)
+async def save_server(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    parts = [part.strip() for part in message.text.split("|")]
+    if len(parts) != 5:
+        await message.answer("فرمت باید دقیقاً شامل ۵ بخش جداشده با | باشد.")
+        return
+    name, location, protocol, priority_text, capacity_text = parts
+    try:
+        priority = int(priority_text)
+        capacity = None if capacity_text in {"", "-", "نامحدود", "unlimited"} else int(capacity_text)
+        if not name or priority < 0 or (capacity is not None and capacity <= 0):
+            raise ValueError
+        server = await add_server(name, location, protocol, priority, capacity)
+    except Exception:
+        logger.exception("Could not add VPN server")
+        await message.answer("مشخصات نامعتبر است یا این نام قبلاً ثبت شده است.")
+        return
+    await state.clear()
+    await message.answer(f"✅ سرور «{server.name}» ثبت شد.", reply_markup=back_to_admin_keyboard())
 
 
 @router.callback_query(F.data == "coupon_add")
@@ -883,6 +935,7 @@ async def approve_order(callback: CallbackQuery, state: FSMContext):
         order.status = OrderStatus.PAID.value
         await session.commit()
 
+    selection = await select_server_for_provisioning(order.id)
     await set_active_fulfillment_order_id(order.id)
     await callback.message.edit_caption(
         caption=(callback.message.caption or "") + "\n\n✅ پرداخت تایید شد.",
@@ -892,7 +945,13 @@ async def approve_order(callback: CallbackQuery, state: FSMContext):
     await state.update_data(order_id=order.id)
     await callback.message.answer(
         f"پرداخت سفارش #{order.id} تایید شد.\n\n"
-        "حالا کانفیگ VPN این کاربر را به‌صورت متن ارسال کنید تا برای او فرستاده شود."
+        + (
+            f"سرور منتخب: {selection.server_name}\n"
+            "پس از اتصال پنل VPN در آینده، ارسال کانفیگ خودکار می‌شود. "
+            "فعلاً کانفیگ را به‌صورت متن ارسال کنید."
+            if selection
+            else "حالا کانفیگ VPN این کاربر را به‌صورت متن ارسال کنید تا برای او فرستاده شود."
+        )
     )
     await callback.answer("حالا کانفیگ را ارسال کنید.")
 

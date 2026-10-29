@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vpnifi}
+      POSTGRES_USER: ${POSTGRES_USER:-vpnifi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: ..
+    restart: unless-stopped
+    command: ["sh", "-c", "alembic upgrade head && python main.py"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-vpnifi}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vpnifi}
+      INSTANCE_LOCK_PATH: /app/data/vpnifi.lock
+      LOG_FILE: /app/logs/bot.log
+    volumes:
+      - bot_data:/app/data
+      - bot_logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  bot_data:
+  bot_logs:

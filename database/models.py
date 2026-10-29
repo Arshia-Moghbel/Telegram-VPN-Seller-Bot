@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -165,18 +165,43 @@ class AdminSetting(Base):
         unique=True,
         index=True,
     )
-
-    value: Mapped[str] = mapped_column(
-        String(500),
-        default="",
-    )
-
+    value: Mapped[str] = mapped_column(String(500), default="")
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
+
+class VPNServer(Base):
+    """A sellable VPN endpoint; credentials are intentionally not stored here."""
+
+    __tablename__ = "vpn_servers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    location: Mapped[str] = mapped_column(String(100), default="")
+    protocol: Mapped[str] = mapped_column(String(30), default="")
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    max_accounts: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # This is a future provider setting identifier, not a password or API key.
+    credential_env: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProvisioningAttempt(Base):
+    """Auditable server selection for a paid order without storing VPN secrets."""
+
+    __tablename__ = "provisioning_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), unique=True)
+    server_id: Mapped[int] = mapped_column(ForeignKey("vpn_servers.id"))
+    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
 class Coupon(Base):
     __tablename__ = "coupons"
@@ -208,6 +233,8 @@ __all__ = [
     "Plan",
     "Receipt",
     "AdminSetting",
+    "VPNServer",
+    "ProvisioningAttempt",
     "Coupon",
     "CouponRedemption",
 ]

@@ -91,14 +91,14 @@ Telegram-VPN-Seller-Bot/
 
 ### Version 0.3
 - [x] PostgreSQL
-- [ ] Alembic
+- [x] Alembic
 - [x] Docker
-- [ ] Logging
+- [x] Logging
 
 ### Version 4.0
-- [ ] Automatic VPN provisioning
-- [ ] Multiple VPN servers
-- [ ] Production deployment
+- [x] Automatic VPN provisioning workflow (ready for a future panel adapter)
+- [x] Multiple VPN servers
+- [x] Production deployment
 
 ## Development
 
@@ -108,6 +108,28 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
+
+## Version 4 readiness
+
+The bot is ready to be connected to hosting when you buy it later. From the
+admin panel, add each server with its location, protocol, priority and account
+capacity; an approved order is assigned to the least-loaded eligible server.
+No VPN credential, panel token or host is stored in the source code.
+
+The existing manual configuration delivery remains active by design until a
+specific VPN panel is selected. Automatic provisioning needs that panel's API
+contract and credentials; this cannot be safely or truthfully enabled before a
+server exists.
+
+For a production deployment with PostgreSQL, set `POSTGRES_PASSWORD` in `.env`
+along with the Telegram settings, then run from the repository root:
+
+```bash
+docker compose -f deploy/compose.production.yaml up -d --build
+```
+
+For an existing SQLite database, run `alembic stamp head` after taking a backup
+so Alembic tracks future schema changes without recreating the current tables.
 
 ## Server deployment
 

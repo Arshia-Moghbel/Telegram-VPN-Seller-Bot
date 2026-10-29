@@ -16,6 +16,7 @@ from db import (
     engine,
     release_instance_lock,
 )
+from services.logging_service import configure_logging
 
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,7 @@ async def log_unhandled_update(event: ErrorEvent) -> bool:
 
 async def main():
     validate_settings()
-    logging.basicConfig(
-        level=getattr(logging, settings.log_level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging(settings.log_level, settings.log_file)
     acquire_instance_lock()
     bot = Bot(settings.bot_token)
     try:

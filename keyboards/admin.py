@@ -53,6 +53,7 @@ def admin_panel_keyboard(labels: dict[str, str]) -> InlineKeyboardMarkup:
                     callback_data="admin_coupons",
                 )
             ],
+            [InlineKeyboardButton(text="🌐 مدیریت سرورها", callback_data="admin_servers")],
             [
                 InlineKeyboardButton(
                     text=labels["ui_admin_buttons"],
@@ -217,6 +218,21 @@ def plans_management_keyboard():
     builder = InlineKeyboardBuilder()
     builder.button(text="➕ افزودن پلن", callback_data="plan_add")
     builder.button(text="📋 فهرست پلن‌ها", callback_data="plan_list")
+    builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def servers_keyboard(servers) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="➕ افزودن سرور", callback_data="server_add")
+    for server in servers:
+        state = "✅" if server.is_active else "⛔️"
+        capacity = str(server.max_accounts) if server.max_accounts is not None else "∞"
+        builder.button(
+            text=f"{state} {server.name} — {server.location or '—'} ({capacity})",
+            callback_data="admin_servers",
+        )
     builder.button(text="◀️ بازگشت به پنل", callback_data="admin_home")
     builder.adjust(1)
     return builder.as_markup()

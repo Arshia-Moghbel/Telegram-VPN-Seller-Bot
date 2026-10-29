@@ -11,7 +11,10 @@ The format is based on Keep a Changelog and follows Semantic Versioning.
 ### Added
 - Planned payment workflow
 - Planned admin panel
-- Planned automatic VPN provisioning
+- Alembic schema tracking and a PostgreSQL production Compose profile
+- Rotating application logs configurable through `LOG_FILE`
+- Multi-server inventory with capacity-aware selection for approved orders
+- A provisioning workflow ready to connect to a future VPN panel API
 
 ## [0.1.0] - 2026-07-11
 

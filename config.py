@@ -16,6 +16,7 @@ class Settings:
     card_owner: str
     support_username: str
     instance_lock_path: str
+    log_file: str
 
 
 settings = Settings(
@@ -29,6 +30,7 @@ settings = Settings(
     card_owner=os.getenv("CARD_OWNER", ""),
     support_username=os.getenv("SUPPORT_USERNAME", ""),
     instance_lock_path=os.getenv("INSTANCE_LOCK_PATH", ".vpnifi.lock"),
+    log_file=os.getenv("LOG_FILE", ""),
 )
 
 
