@@ -4,7 +4,6 @@ A production-oriented Telegram bot for selling and managing VPN subscriptions, b
 
 Address: @Vpnifi26_bot
 
-> **Status:** 🚧 In Active Development
 
 ## Overview
 
@@ -96,7 +95,7 @@ Telegram-VPN-Seller-Bot/
 - [x] Logging
 
 ### Version 4.0
-- [x] Automatic VPN provisioning workflow (ready for a future panel adapter)
+- [] Automatic VPN provisioning workflow (ready for a future panel adapter)
 - [x] Multiple VPN servers
 - [x] Production deployment
 
