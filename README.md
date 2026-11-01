@@ -95,7 +95,7 @@ Telegram-VPN-Seller-Bot/
 - [x] Logging
 
 ### Version 4.0
-- [] Automatic VPN provisioning workflow (ready for a future panel adapter)
+- [ ] Automatic VPN provisioning workflow (ready for a future panel adapter)
 - [x] Multiple VPN servers
 - [x] Production deployment
 
