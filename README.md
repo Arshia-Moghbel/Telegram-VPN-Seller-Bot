@@ -11,7 +11,7 @@ Vpnifi is a modular Telegram bot for selling and managing VPN subscriptions. The
 
 The long-term goal is to provide automatic VPN provisioning, payment processing, subscription management, and an extensible administration panel.
 
-This project is in Persian.
+## (This project is in Persian.)
 
 ## Features
 
